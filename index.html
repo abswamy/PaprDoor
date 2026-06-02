@@ -958,6 +958,9 @@ let cp=null,fr=false,ar=[], allResults=[];
 let lastSearch={}, currentPage=1, totalResults=0;
 let nlSort={ refs:'year-desc', cites:'year-desc' };
 let navHistory=[], currentRP='';
+const oaCache = new Map();
+let uwCallsToday = 0;
+let uwCallDate = new Date().toDateString();
 const $=id=>document.getElementById(id);
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2400)}
 function loading(on){$('lbar').style.display=on?'block':'none'}
@@ -1660,6 +1663,57 @@ function sortList(type, sort) {
   renderList(type, items, filter, sort);
 }
 
+function getCached(doi) {
+  const entry = oaCache.get(doi);
+  if (!entry) return null;
+  const age = Date.now() - entry.timestamp;
+  if (age > entry.ttl) { oaCache.delete(doi); return null; }
+  return entry;
+}
+
+async function verifyAndUpdate(doi, cardEl) {
+  if (!doi || !cardEl) return;
+  const cached = getCached(doi);
+  if (cached) { updateCardBadge(cardEl, cached.free, cached.pdf); return; }
+  if (new Date().toDateString() !== uwCallDate) {
+    uwCallsToday = 0;
+    uwCallDate = new Date().toDateString();
+  }
+  if (uwCallsToday >= 80000) return;
+  uwCallsToday++;
+  try {
+    const res = await fetch(
+      'https://api.unpaywall.org/v2/' + doi + '?email=hello@paprdoor.org'
+    );
+    const data = await res.json();
+    const bestPdf = getBestPdfUrl(data);
+    const free = !!(data.is_oa && bestPdf);
+    oaCache.set(doi, {
+      free,
+      pdf: bestPdf || null,
+      timestamp: Date.now(),
+      ttl: free ? 12 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000
+    });
+    updateCardBadge(cardEl, free, bestPdf);
+  } catch(e) {}
+}
+
+function updateCardBadge(cardEl, free, pdf) {
+  if (!cardEl) return;
+  const badge = cardEl.querySelector('.nl-badge');
+  if (badge) {
+    badge.className = 'nl-badge ' + (free ? 'free' : 'paid');
+    badge.textContent = free ? '✓ Free' : '⊘ Paywalled';
+  }
+  const dot = cardEl.querySelector('.mlist-dot, .nl-dot');
+  if (dot) dot.style.background = free ? 'var(--green)' : 'var(--red)';
+  const pdfBtn = cardEl.querySelector('.nl-pdf-btn');
+  if (pdfBtn) {
+    pdfBtn.style.display = free && pdf ? 'inline-flex' : 'none';
+    if (free && pdf) pdfBtn.onclick = () => window.open(pdf, '_blank');
+  }
+}
+
 function renderList(type, items, filter, sort) {
   filter = filter || 'all';
   sort   = sort   || nlSort[type] || 'year-desc';
@@ -1725,7 +1779,7 @@ function renderList(type, items, filter, sort) {
         ` data-check-abstract="${encodeURIComponent(p.abstract||'')}"`
       : '';
 
-    return `<div class="nl-card" ${checkAttr}>
+    return `<div class="nl-card" ${checkAttr} data-doi="${esc(p.doi || '')}">
       ${viewBtn}
       <div class="nl-title">${p.title || 'Untitled'}</div>
       ${meta ? `<div class="nl-meta">${meta}</div>` : ''}
@@ -1762,6 +1816,19 @@ function renderList(type, items, filter, sort) {
   container.querySelectorAll('.nl-card[data-check-title]').forEach(card => {
     checkOtherSources(card, decodeURIComponent(card.dataset.checkTitle));
   });
+
+  // Background OA verification — staggered, cache-aware, rate-limited
+  setTimeout(() => {
+    const freeDois = (cp.refs || []).concat(cp.cites || []).filter(r => r.free && r.doi);
+    freeDois.forEach((item, index) => {
+      const doi = item.doi;
+      if (!doi) return;
+      setTimeout(() => {
+        const cardEl = document.querySelector('[data-doi="' + doi + '"]');
+        verifyAndUpdate(doi, cardEl);
+      }, index * 100);
+    });
+  }, 500);
 }
 
 function openPreviewPane(pdfUrl, title, item) {
