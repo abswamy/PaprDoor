@@ -1211,6 +1211,33 @@ async function fetchDOI(doi) {
   }
 }
 
+async function handleResultClick(doi, title) {
+  if (doi && doi !== 'null' && doi !== 'undefined') {
+    searchDirect(doi);
+  } else {
+    loading(true);
+    try {
+      const res = await fetch(
+        'https://api.openalex.org/works?filter=title.search:'
+        + encodeURIComponent(title)
+        + '&per_page=1&mailto=hello@paprdoor.org'
+      );
+      const data = await res.json();
+      const work = data.results?.[0];
+      const foundDoi = work?.doi?.replace('https://doi.org/','');
+      if (foundDoi) {
+        searchDirect(foundDoi);
+      } else {
+        toast('No DOI found for this paper. Try searching directly.');
+      }
+    } catch(e) {
+      toast('Could not load paper. Please try again.');
+    } finally {
+      loading(false);
+    }
+  }
+}
+
 async function searchDirect(doi) {
   const q = doi || $("doi-input").value.trim();
   if (!q) return;
@@ -1336,7 +1363,7 @@ function renderResults(q, res, page, total) {
   showPage('pg-results');
 }
 function renderCards(list) {
-  $("rl").innerHTML = list.map(p => `<div class="rc" onclick="searchDirect('${p.doi}')"><div class="rdot ${p.free ? "oa" : "pd"}"></div><div class="rbdy"><div class="rtl">${p.title}</div><div class="rau">${p.authors}</div><div class="rab">${p.abstract}</div><div class="rmr"><span class="bdg ${p.free ? "oa" : "pd"}">${p.free ? "✓ Open Access" : "⊘ Paywalled"}</span><span class="bdg yr">${p.year}</span><span class="bdg jn">${p.journal}</span><span class="bdg doi">${p.doi || ""}</span></div></div><div class="ract"><button class="bvw">View →</button>${p.free ? `<button class="bdl" onclick="event.stopPropagation();window.open('${p.pdf}','_blank')">PDF ↓</button>` : ""}</div></div>`).join("");
+  $("rl").innerHTML = list.map(p => `<div class="rc" onclick="handleResultClick('${p.doi}','${(p.title||'').replace(/'/g,"&#39;")}')"><div class="rdot ${p.free ? "oa" : "pd"}"></div><div class="rbdy"><div class="rtl">${p.title}</div><div class="rau">${p.authors}</div><div class="rab">${p.abstract}</div><div class="rmr"><span class="bdg ${p.free ? "oa" : "pd"}">${p.free ? "✓ Open Access" : "⊘ Paywalled"}</span><span class="bdg yr">${p.year}</span><span class="bdg jn">${p.journal}</span><span class="bdg doi">${p.doi || ""}</span></div></div><div class="ract"><button class="bvw">View →</button>${p.free ? `<button class="bdl" onclick="event.stopPropagation();window.open('${p.pdf}','_blank')">PDF ↓</button>` : ""}</div></div>`).join("");
 }
 function filterR(type, el) {
   document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
@@ -1628,6 +1655,13 @@ function switchRP(state){
     renderList('cites', cp.cites||[], 'all', nlSort.cites);
   }
 }
+function showPdfFallback() {
+  const iframe = document.getElementById('pdfembed');
+  const fb = document.getElementById('pdffb');
+  if (iframe) iframe.style.display = 'none';
+  if (fb) fb.style.display = 'flex';
+}
+
 function renderPDF(p) {
   const w = $('pdfwrap');
   if (!w) return;
@@ -1649,6 +1683,8 @@ function renderPDF(p) {
         </div>
       </div>
       <iframe src="${url}" id="pdfembed" allow="fullscreen"
+        sandbox="allow-scripts allow-same-origin"
+        onerror="showPdfFallback()"
         style="flex:1;border:none;width:100%;min-height:300px"></iframe>
       <div id="pdffb" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:40px;text-align:center">
         <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
@@ -1658,12 +1694,12 @@ function renderPDF(p) {
           <path d="M32 35l2 2 4-4" stroke="var(--orange)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <div>
-          <h3 style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:var(--navy);margin-bottom:10px">Preview unavailable</h3>
+          <h3 style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:var(--navy);margin-bottom:10px">Preview not available</h3>
           <p style="font-size:13px;color:var(--ink-soft);max-width:275px;line-height:1.75;margin-bottom:20px">
-            This publisher doesn't allow PaprDoor to display PDFs inline.<br>Open it directly in your browser — it's free.
+            This publisher doesn't allow in-app preview. The paper is free — open it directly in your browser.
           </p>
           <button class="btn-action btn-download" onclick="window.open('${url}','_blank')" style="padding:10px 22px;font-size:13px">
-            Open PDF in new tab ↗
+            Open Free PDF ↗
           </button>
         </div>
       </div>`;
@@ -1677,8 +1713,8 @@ function renderPDF(p) {
         iframe.style.display = 'none';
         fb.style.display = 'flex';
       };
-      // 2-second backstop: show fallback if iframe never fires onload (publisher hard-blocking)
-      const blockTimer = setTimeout(showFallback, 2000);
+      // 800ms backstop: show fallback if iframe never fires onload (publisher hard-blocking)
+      const blockTimer = setTimeout(showFallback, 800);
       iframe.onerror = () => { clearTimeout(blockTimer); showFallback(); };
       iframe.onload = () => {
         clearTimeout(blockTimer);
