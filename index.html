@@ -1124,6 +1124,23 @@ function isTrulyFree(uwData, oaUrl) {
   return { free: false, pdf: null };
 }
 
+function mergeByDoi(primary, secondary) {
+  const seen = new Set(
+    primary
+      .map(p => p.doi || p.externalIds?.DOI)
+      .filter(Boolean)
+      .map(d => d.toLowerCase())
+  );
+  const extras = secondary.filter(s => {
+    const doi = (s.doi || s.externalIds?.DOI || '').toLowerCase();
+    if (!doi) return true;
+    if (seen.has(doi)) return false;
+    seen.add(doi);
+    return true;
+  });
+  return [...primary, ...extras];
+}
+
 async function fetchEuropePMC(doi) {
   const res = await fetch(
     'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:'
@@ -1270,20 +1287,51 @@ async function fetchDOI(doi) {
       journal: ''
     })).filter(r => r.doi);
 
-    // ssData already parsed above — reuse its references array
-    let refs  = mapSS(ssData?.references || []);
-    let cites = [];
+    // References: SS primary + CrossRef merged
+    let refs = mapSS(ssData?.references || []);
+    const crRefs = (crM?.reference || [])
+      .map(r => ({
+        doi: r.DOI || null,
+        title: r['article-title'] || r.unstructured || '',
+        authors: r.author || r['first-author'] || '',
+        year: r.year ? parseInt(r.year) : null,
+        journal: r['journal-title'] || r['volume-title'] || '',
+        free: false,
+        openAccessPdf: null
+      }))
+      .filter(r => r.title);
+    refs = mergeByDoi(refs, crRefs);
 
+    // Citations: SS primary + OpenCitations merged
+    let cites = [];
     if (citRawRes.status === 'fulfilled' && citRawRes.value.ok) {
       const citesData = await citRawRes.value.json();
       cites = mapSS(citesData.citations || []);
     }
-
-    if (refs.length === 0 && crM?.reference?.length) refs = mapCR(crM.reference);
-    if (cites.length === 0 && ocRes.status === 'fulfilled' && ocRes.value.ok) {
+    if (ocRes.status === 'fulfilled' && ocRes.value.ok) {
       const ocData = await ocRes.value.json();
-      cites = mapOC(Array.isArray(ocData) ? ocData : []);
+      cites = mergeByDoi(cites, mapOC(Array.isArray(ocData) ? ocData : []));
     }
+
+    // Enrich OC-only citation stubs (DOI only, no title) with CrossRef metadata
+    const noMetadata = cites.filter(c => (!c.title || c.title === c.doi || c.title === 'Citing paper') && c.doi);
+    await Promise.allSettled(
+      noMetadata.slice(0, 20).map(async item => {
+        const doi = item.doi;
+        try {
+          const res = await fetch(
+            'https://api.crossref.org/works/' + doi,
+            { headers: { 'User-Agent': 'PaprDoor/1.0 (mailto:hello@paprdoor.org)' } }
+          );
+          const data = await res.json();
+          const m = data.message;
+          item.title   = m.title?.[0] || '';
+          item.authors = (m.author || []).map(a => (a.given||'') + ' ' + (a.family||'')).join(', ');
+          item.year    = m.published?.['date-parts']?.[0]?.[0] || null;
+          item.journal = m['container-title']?.[0] || '';
+        } catch(e) {}
+      })
+    );
 
     // Batch OA check for refs via OpenAlex (authoritative for OA status)
     const refsWithDoi = refs.filter(r => r.doi).slice(0, 40);
@@ -1685,12 +1733,29 @@ async function verifyAndUpdate(doi, cardEl) {
   if (uwCallsToday >= 80000) return;
   uwCallsToday++;
   try {
-    const res = await fetch(
+    const uwRes = await fetch(
       'https://api.unpaywall.org/v2/' + doi + '?email=hello@paprdoor.org'
     );
-    const data = await res.json();
-    const bestPdf = getBestPdfUrl(data);
-    const free = !!(data.is_oa && bestPdf);
+    const uwData = await uwRes.json();
+    let bestPdf = getBestPdfUrl(uwData);
+    let free = !!(uwData.is_oa && bestPdf);
+
+    if (!bestPdf) {
+      try {
+        const epRes = await fetch(
+          'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:'
+          + encodeURIComponent(doi)
+          + '&format=json&resultType=core&pageSize=1'
+        );
+        const epData = await epRes.json();
+        const r = epData.resultList?.result?.[0];
+        if (r?.isOpenAccess === 'Y' && r?.pmcid) {
+          bestPdf = 'https://europepmc.org/articles/' + r.pmcid + '?pdf=render';
+          free = true;
+        }
+      } catch(e) {}
+    }
+
     oaCache.set(doi, {
       free,
       pdf: bestPdf || null,
@@ -1817,7 +1882,12 @@ function renderList(type, items, filter, sort) {
 
   // Check each Other Sources card against OpenAlex for a free version
   container.querySelectorAll('.nl-card[data-check-title]').forEach(card => {
-    checkOtherSources(card, decodeURIComponent(card.dataset.checkTitle));
+    checkOtherSources(
+      card,
+      decodeURIComponent(card.dataset.checkTitle),
+      decodeURIComponent(card.dataset.checkAuthors || ''),
+      card.dataset.checkYear || ''
+    );
   });
 
   // Background OA verification — staggered, cache-aware, rate-limited
@@ -1854,44 +1924,76 @@ function openPreviewPane(pdfUrl, title, item) {
   openRP('preview');
 }
 
-async function checkOtherSources(cardEl, title) {
-  if (!title) return;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 5000);
+async function checkOtherSources(cardEl, title, authors, year) {
+  if (!cardEl || !title) return;
+  const titleQ = encodeURIComponent(title);
   try {
-    const url = `https://api.openalex.org/works?search=${encodeURIComponent(title)}`
-              + `&select=open_access&per_page=1&mailto=hello@paprdoor.org`;
-    const res = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(timer);
-    if (!res.ok) return;
-    const data = await res.json();
-    const work = data.results?.[0];
-    if (!work?.open_access?.is_oa || !work.open_access.oa_url) return;
-    const pdfUrl = work.open_access.oa_url;
-    // Build item from the card's data attributes
-    const d = cardEl.dataset;
-    const item = {
-      title:    decodeURIComponent(d.checkTitle   || ''),
-      authors:  decodeURIComponent(d.checkAuthors || ''),
-      year:     d.checkYear    || '',
-      journal:  decodeURIComponent(d.checkJournal  || ''),
-      abstract: decodeURIComponent(d.checkAbstract || '')
-    };
-    // Upgrade the No DOI badge to a Free badge
-    const footer = cardEl.querySelector('.nl-footer');
-    if (!footer) return;
-    const badge = footer.querySelector('.nl-badge.nodoi');
-    if (badge) { badge.className = 'nl-badge free'; badge.textContent = '✓ Free (OpenAlex)'; }
-    // Add Open PDF button — opens preview pane with full left-pane update
-    const btn = document.createElement('button');
-    btn.className = 'nl-pdf-btn';
-    btn.textContent = 'Open PDF ↗';
-    btn.onclick = () => openPreviewPane(pdfUrl, title, item);
-    footer.appendChild(btn);
-  } catch(e) {
-    clearTimeout(timer);
-    // Silent fail — card unchanged
-  }
+    const [oaRes, ssRes, epRes] = await Promise.allSettled([
+      fetch('https://api.openalex.org/works?search=' + titleQ
+        + '&select=doi,open_access,best_oa_location&per_page=1&mailto=hello@paprdoor.org'),
+      fetch('https://api.semanticscholar.org/graph/v1/paper/search?query=' + titleQ
+        + '&fields=title,externalIds,openAccessPdf&limit=1'),
+      fetch('https://www.ebi.ac.uk/europepmc/webservices/rest/search?query='
+        + encodeURIComponent('TITLE:"' + title + '"')
+        + '&format=json&resultType=core&pageSize=1')
+    ]);
+
+    let pdfUrl = null;
+    let foundDoi = null;
+
+    if (oaRes.status === 'fulfilled') {
+      const data = await oaRes.value.json();
+      const work = data.results?.[0];
+      if (work) {
+        const url = work.best_oa_location?.url_for_pdf || work.open_access?.oa_url;
+        if (url) pdfUrl = url;
+        if (work.doi) foundDoi = work.doi.replace('https://doi.org/', '');
+      }
+    }
+
+    if (!pdfUrl && ssRes.status === 'fulfilled') {
+      const data = await ssRes.value.json();
+      const paper = data.data?.[0];
+      if (paper?.openAccessPdf?.url) {
+        pdfUrl = paper.openAccessPdf.url;
+        foundDoi = paper.externalIds?.DOI || foundDoi;
+      }
+    }
+
+    if (!pdfUrl && epRes.status === 'fulfilled') {
+      const data = await epRes.value.json();
+      const r = data.resultList?.result?.[0];
+      if (r?.isOpenAccess === 'Y' && r?.pmcid) {
+        pdfUrl = 'https://europepmc.org/articles/' + r.pmcid + '?pdf=render';
+        foundDoi = r.doi || foundDoi;
+      }
+    }
+
+    if (pdfUrl) {
+      cardEl.style.borderLeft = '3px solid var(--green)';
+      const badge = document.createElement('span');
+      badge.className = 'bdg oa';
+      badge.textContent = '✓ Free version found';
+      badge.style.cssText = 'margin-top:6px;display:inline-block';
+      const btn = document.createElement('button');
+      btn.className = 'nl-view-btn';
+      btn.style.background = 'var(--green)';
+      btn.style.marginTop = '6px';
+      btn.textContent = 'Open PDF ↗';
+      btn.onclick = () => window.open(pdfUrl, '_blank');
+      const meta = cardEl.querySelector('.nl-meta');
+      if (meta) { meta.after(badge); badge.after(btn); }
+      if (foundDoi) {
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'nl-view-btn';
+        viewBtn.style.marginTop = '6px';
+        viewBtn.style.marginLeft = '6px';
+        viewBtn.textContent = 'View Paper →';
+        viewBtn.onclick = () => loadFromList(foundDoi, pdfUrl);
+        btn.after(viewBtn);
+      }
+    }
+  } catch(e) {}
 }
 
 function loadPaper(paper, skipHistory) {
