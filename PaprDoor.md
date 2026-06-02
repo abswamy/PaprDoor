@@ -200,7 +200,7 @@ Always show partial results with explanation. Never a blank page.
 
 ```
 PaprDoor/
-├── CLAUDE.md              ← this file — always read first
+├── PaprDoor.md            ← this file — always read first
 ├── index.html             ← Page 1: Search home
 ├── paper.html             ← Page 2: Paper view (split layout)
 ├── results.html           ← Page 2.1: Results list
@@ -377,6 +377,6 @@ Vision: PaprDoor finds the research → DataWing finds the datasets → BirdWing
 
 ---
 
-*PaprDoor CLAUDE.md — Project Brain v1.0 — May 2026*
+*PaprDoor.md — Project Brain v1.0 — May 2026*
 *Read completely before every session.*
 *Because knowledge should have no walls.*
