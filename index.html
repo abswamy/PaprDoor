@@ -959,7 +959,7 @@ function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';set
 function loading(on){$('lbar').style.display=on?'block':'none'}
 function trunc(s,n){return s&&s.length>n?s.slice(0,n)+'…':s||''}
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));const t=$(id);if(t)t.classList.add('active')}
-function goHome(){showPage('pg-home');fr=false;navHistory=[];currentRP='';}
+function goHome(){const old=$('search-error');if(old)old.remove();showPage('pg-home');fr=false;navHistory=[];currentRP='';}
 function goResults(){if(fr)showPage('pg-results')}
 
 function updateNav() {
@@ -1079,94 +1079,173 @@ function getBestPdfUrl(unpaywallData) {
   return unpaywallData.best_oa_location?.url_for_pdf || null;
 }
 
+async function fetchEuropePMC(doi) {
+  const res = await fetch(
+    'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:'
+    + encodeURIComponent(doi)
+    + '&format=json&resultType=core'
+  );
+  const data = await res.json();
+  const r = data.resultList?.result?.[0];
+  if (!r) throw new Error('Not found in EuropePMC');
+  return {
+    title:    r.title,
+    authors:  r.authorString,
+    year:     r.pubYear,
+    journal:  r.journalTitle,
+    doi:      r.doi,
+    abstract: r.abstractText || '',
+    oa:       r.isOpenAccess === 'Y',
+    pdf:      r.isOpenAccess === 'Y'
+      ? 'https://europepmc.org/articles/' + r.pmcid + '?pdf=render'
+      : null
+  };
+}
+
 async function fetchDOI(doi) {
+  const cleanDoi = doi.trim()
+    .replace('https://doi.org/', '')
+    .replace('http://doi.org/', '');
+
   try {
-    const [crRes, oaRes, refRawRes, citRawRes, ocRes, uwRes] = await Promise.allSettled([
-      fetch(`https://api.crossref.org/works/${doi}`, {
+    // Fire all sources in parallel — SS refs call also fetches paper metadata fields
+    const [crRes, oaRes, refRawRes, citRawRes, ocRes, uwRes, epmcRes] = await Promise.allSettled([
+      fetch(`https://api.crossref.org/works/${cleanDoi}`, {
         headers: { 'User-Agent': 'PaprDoor/1.0 (paprdoor.org; mailto:hello@paprdoor.org)' }
       }),
-      fetch(`https://api.openalex.org/works/doi:${doi}`),
-      fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${doi}?fields=references.title,references.authors,references.year,references.externalIds,references.openAccessPdf,references.journal`),
-      fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${doi}?fields=citations.title,citations.authors,citations.year,citations.externalIds,citations.openAccessPdf,citations.journal`),
-      fetch(`https://opencitations.net/index/api/v2/citations/${encodeURIComponent(doi)}`),
-      fetch(`https://api.unpaywall.org/v2/${doi}?email=hello@paprdoor.org`)
+      fetch(`https://api.openalex.org/works/doi:${cleanDoi}`),
+      fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${cleanDoi}?fields=title,authors,year,journal,externalIds,references.title,references.authors,references.year,references.externalIds,references.openAccessPdf,references.journal`),
+      fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${cleanDoi}?fields=citations.title,citations.authors,citations.year,citations.externalIds,citations.openAccessPdf,citations.journal`),
+      fetch(`https://opencitations.net/index/api/v2/citations/${encodeURIComponent(cleanDoi)}`),
+      fetch(`https://api.unpaywall.org/v2/${cleanDoi}?email=hello@paprdoor.org`),
+      fetchEuropePMC(cleanDoi)
     ]);
 
-    if (crRes.status !== 'fulfilled' || !crRes.value.ok) throw new Error('CrossRef fetch failed');
-    const crData = await crRes.value.json();
-    const m = crData.message;
+    // ── Core metadata: CrossRef > OpenAlex > Semantic Scholar > EuropePMC ──
+    let title, authors, journal, year, abstract, authorName, orcid, affil, metaDoi;
+    let crM = null, oaData = null, ssData = null;
 
-    // OA status: OpenAlex first, Unpaywall as fallback
-    // OpenAlex may not index very recent papers; Unpaywall is authoritative for publisher OA
-    let isOA = false;
-    let oaUrl = null;
-    let oaUrlFromOpenAlex = null;
+    if (crRes.status === 'fulfilled' && crRes.value.ok) {
+      const crData = await crRes.value.json();
+      crM        = crData.message;
+      title      = crM.title?.[0];
+      authors    = (crM.author || []).map(a => `${a.given || ''} ${a.family || ''}`).join(', ');
+      journal    = crM['container-title']?.[0] || 'Unknown Journal';
+      year       = crM.published?.['date-parts']?.[0]?.[0];
+      abstract   = crM.abstract ? crM.abstract.replace(/<[^>]*>/g, '').replace(/^Abstract/i, '').trim() : null;
+      authorName = `${crM.author?.[0]?.given || ''} ${crM.author?.[0]?.family || ''}`.trim();
+      orcid      = crM.author?.[0]?.ORCID || null;
+      affil      = crM.author?.[0]?.affiliation?.[0]?.name || '';
+      metaDoi    = crM.DOI;
+    }
+
     if (oaRes.status === 'fulfilled' && oaRes.value.ok) {
-      const oaData = await oaRes.value.json();
-      isOA = !!(oaData.open_access?.is_oa);
+      oaData = await oaRes.value.json();
+      if (!title) {
+        title      = oaData.title;
+        authors    = (oaData.authorships || []).map(a => a.author?.display_name || '').filter(Boolean).join(', ');
+        journal    = oaData.primary_location?.source?.display_name || 'Unknown Journal';
+        year       = oaData.publication_year;
+        abstract   = oaData.abstract_inverted_index ? reconstructAbstract(oaData.abstract_inverted_index) : null;
+        authorName = oaData.authorships?.[0]?.author?.display_name || '';
+        affil      = oaData.authorships?.[0]?.institutions?.[0]?.display_name || '';
+        metaDoi    = (oaData.doi || '').replace('https://doi.org/', '') || cleanDoi;
+      }
+    }
+
+    // SS refs response includes paper metadata — read once for both metadata fallback and refs list
+    if (refRawRes.status === 'fulfilled' && refRawRes.value.ok) {
+      ssData = await refRawRes.value.json();
+      if (!title && ssData.title) {
+        title      = ssData.title;
+        authors    = (ssData.authors || []).map(a => a.name).join(', ');
+        journal    = ssData.journal?.name || 'Unknown Journal';
+        year       = ssData.year;
+        authorName = ssData.authors?.[0]?.name || '';
+        metaDoi    = ssData.externalIds?.DOI || cleanDoi;
+      }
+    }
+
+    if (!title && epmcRes.status === 'fulfilled') {
+      const ep = epmcRes.value;
+      title      = ep.title;
+      authors    = ep.authors;
+      journal    = ep.journal;
+      year       = ep.year;
+      abstract   = ep.abstract || null;
+      authorName = (ep.authors || '').split(',')[0].trim();
+      metaDoi    = ep.doi || cleanDoi;
+    }
+
+    if (!title) throw new Error('NOT_FOUND');
+
+    // ── OA status: Unpaywall > OpenAlex > EuropePMC ──
+    let isOA = false, oaUrl = null, oaUrlFromOpenAlex = null;
+
+    if (oaData) {
+      isOA             = !!(oaData.open_access?.is_oa);
       oaUrlFromOpenAlex = oaData.open_access?.oa_url || null;
     }
     if (uwRes.status === 'fulfilled' && uwRes.value.ok) {
       const uwData = await uwRes.value.json();
       if (uwData.is_oa) {
-        isOA = true;
-        oaUrl = getBestPdfUrl(uwData); // prioritises PMC/arXiv/bioRxiv direct PDFs over landing pages
+        isOA  = true;
+        oaUrl = getBestPdfUrl(uwData); // prioritises PMC/arXiv/bioRxiv direct PDFs
       }
     }
-    oaUrl = oaUrl || oaUrlFromOpenAlex; // fall back to OpenAlex URL
+    if (!isOA && epmcRes.status === 'fulfilled' && epmcRes.value.oa) {
+      isOA  = true;
+      oaUrl = oaUrl || epmcRes.value.pdf;
+    }
+    oaUrl = oaUrl || oaUrlFromOpenAlex;
 
-    // Semantic Scholar mapper
+    // ── References & citations ──
     const mapSS = (items) => (items || []).map((item, i) => ({
-      id: item.externalIds?.DOI || `ss_${i}`,
-      doi: item.externalIds?.DOI || null,
-      title: item.title || "Untitled",
-      authors: (item.authors || []).map(a => a.name).join(", "),
-      year: item.year || null,
-      free: !!item.openAccessPdf?.url,
-      journal: item.journal?.name || ""
+      id:      item.externalIds?.DOI || `ss_${i}`,
+      doi:     item.externalIds?.DOI || null,
+      title:   item.title || 'Untitled',
+      authors: (item.authors || []).map(a => a.name).join(', '),
+      year:    item.year || null,
+      free:    !!item.openAccessPdf?.url,
+      journal: item.journal?.name || ''
     }));
 
-    // CrossRef reference fallback mapper
     const mapCR = (items) => (items || []).map((item, i) => ({
-      id: item.DOI || item.key || `cr_${i}`,
-      doi: item.DOI || null,
-      title: item['article-title'] || item['volume-title'] || item.unstructured?.substring(0, 100) || 'Untitled',
+      id:      item.DOI || item.key || `cr_${i}`,
+      doi:     item.DOI || null,
+      title:   item['article-title'] || item['volume-title'] || item.unstructured?.substring(0, 100) || 'Untitled',
       authors: item.author || '',
-      year: item.year ? parseInt(item.year) : null,
-      free: false,
+      year:    item.year ? parseInt(item.year) : null,
+      free:    false,
       journal: item['journal-title'] || ''
     })).filter(r => r.title !== 'Untitled');
 
-    // OpenCitations fallback mapper (only citing DOIs — use DOI as title)
     const mapOC = (items) => (items || []).map((item, i) => ({
-      id: item.citing || `oc_${i}`,
-      doi: item.citing || null,
-      title: item.citing || 'Citing paper',
+      id:      item.citing || `oc_${i}`,
+      doi:     item.citing || null,
+      title:   item.citing || 'Citing paper',
       authors: '',
-      year: item.creation ? parseInt(item.creation.split('-')[0]) : null,
-      free: false,
+      year:    item.creation ? parseInt(item.creation.split('-')[0]) : null,
+      free:    false,
       journal: ''
     })).filter(r => r.doi);
 
-    const refsData = refRawRes.status === "fulfilled" && refRawRes.value.ok ? await refRawRes.value.json() : { references: [] };
-    const citesData = citRawRes.status === "fulfilled" && citRawRes.value.ok ? await citRawRes.value.json() : { citations: [] };
+    // ssData already parsed above — reuse its references array
+    let refs  = mapSS(ssData?.references || []);
+    let cites = [];
 
-    let refs = mapSS(refsData.references || []);
-    let cites = mapSS(citesData.citations || []);
-
-    // Fallback: CrossRef reference list (already in the CrossRef response — no extra call)
-    if (refs.length === 0 && m.reference && m.reference.length) {
-      refs = mapCR(m.reference);
+    if (citRawRes.status === 'fulfilled' && citRawRes.value.ok) {
+      const citesData = await citRawRes.value.json();
+      cites = mapSS(citesData.citations || []);
     }
 
-    // Fallback: OpenCitations for citations
+    if (refs.length === 0 && crM?.reference?.length) refs = mapCR(crM.reference);
     if (cites.length === 0 && ocRes.status === 'fulfilled' && ocRes.value.ok) {
       const ocData = await ocRes.value.json();
       cites = mapOC(Array.isArray(ocData) ? ocData : []);
     }
 
-    // Batch OA check via OpenAlex for all refs with DOIs
-    // S2 openAccessPdf is incomplete; CrossRef fallback marks all as paid — OpenAlex is authoritative
+    // Batch OA check for refs via OpenAlex (authoritative for OA status)
     const refsWithDoi = refs.filter(r => r.doi).slice(0, 40);
     if (refsWithDoi.length > 0) {
       try {
@@ -1191,21 +1270,24 @@ async function fetchDOI(doi) {
     }
 
     return {
-      doi: m.DOI,
-      title: m.title[0],
-      authors: m.author.map(a => `${a.given || ""} ${a.family || ""}`).join(", "),
-      journal: m["container-title"] && m["container-title"].length ? m["container-title"][0] : "Unknown Journal",
-      year: m.published["date-parts"][0][0],
-      oa: isOA,
-      pdf: oaUrl,
-      abstract: m.abstract ? m.abstract.replace(/<[^>]*>/g, "").replace(/^Abstract/i, "").trim() : "No abstract available.",
-      authorName: `${m.author[0].given || ''} ${m.author[0].family || ''}`.trim(),
-      orcid: m.author[0].ORCID || null,
-      affil: m.author[0].affiliation && m.author[0].affiliation.length ? m.author[0].affiliation[0].name : "",
+      doi:        metaDoi,
+      title,
+      authors,
+      journal,
+      year,
+      oa:         isOA,
+      pdf:        oaUrl,
+      abstract:   abstract || 'No abstract available.',
+      authorName: authorName || (authors || '').split(',')[0].trim(),
+      orcid:      orcid || null,
+      affil:      affil || '',
+      keywords:   [],
       refs,
       cites
     };
+
   } catch (err) {
+    if (err.message === 'NOT_FOUND') throw err;
     toast('Error fetching paper. Please try again.');
     throw err;
   }
@@ -1241,6 +1323,8 @@ async function handleResultClick(doi, title) {
 async function searchDirect(doi) {
   const q = doi || $("doi-input").value.trim();
   if (!q) return;
+  const old = $('search-error');
+  if (old) old.remove();
   loading(true);
   try {
     const paper = await fetchDOI(q);
@@ -1248,9 +1332,43 @@ async function searchDirect(doi) {
     loadPaper(paper);
   } catch (e) {
     console.error(e);
+    if (e.message === 'NOT_FOUND') showNotFoundError(q);
   } finally {
     loading(false);
   }
+}
+
+function showNotFoundError(query) {
+  showPage('pg-home');
+  const old = $('search-error');
+  if (old) old.remove();
+  const div = document.createElement('div');
+  div.id = 'search-error';
+  div.style.cssText = 'margin-top:20px;background:white;border:1.5px solid var(--rule-light);border-radius:var(--rl);padding:24px;text-align:center;max-width:660px;margin-left:auto;margin-right:auto;box-shadow:var(--sh-sm)';
+  const gsQ = encodeURIComponent(query);
+  div.innerHTML = `
+    <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--red);margin-bottom:10px">Not Found</div>
+    <p style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">Paper not found in CrossRef, OpenAlex, Semantic Scholar, or EuropePMC.</p>
+    <p style="font-size:13px;color:var(--ink-soft);line-height:1.75;margin-bottom:20px;max-width:460px;margin-left:auto;margin-right:auto">
+      This may be a very new paper, a preprint, or from a small regional journal.<br>Try searching by title instead.
+    </p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="bp" onclick="searchByTitleFallback('${query.replace(/'/g,"&#39;").replace(/"/g,'&quot;')}')">Search by Title</button>
+      <button class="bp" style="background:white;color:var(--navy);border:1.5px solid var(--rule)"
+        onclick="window.open('https://scholar.google.com/scholar?q=${gsQ}','_blank')">
+        Search Google Scholar ↗
+      </button>
+    </div>`;
+  const heroInner = document.querySelector('.hero-inner');
+  if (heroInner) heroInner.appendChild(div);
+}
+
+function searchByTitleFallback(query) {
+  const old = $('search-error');
+  if (old) old.remove();
+  switchMode('adv');
+  const kw = $('kw-input');
+  if (kw) { kw.value = query; kw.focus(); }
 }
 async function searchKeywords(page, params) {
   page = page || 1;
