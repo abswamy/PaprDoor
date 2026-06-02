@@ -629,6 +629,9 @@ embed.pdfframe { flex: 1; border: none; width: 100%; min-height: 300px; }
   transition: border-color .18s, box-shadow .18s;
 }
 .nl-card:hover { border-color: var(--navy); box-shadow: var(--sh-sm); }
+.nl-card { display: flex; align-items: flex-start; gap: 12px; }
+.nl-body { flex: 1; min-width: 0; }
+.nl-action { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .nl-title {
   font-family: 'DM Sans', sans-serif;
   font-size: 13px; font-weight: 600; color: var(--ink);
@@ -1809,7 +1812,7 @@ function renderList(type, items, filter, sort) {
     const badge =
       section === 'free'  ? '<span class="nl-badge free">✓ Free</span>' :
       section === 'paid'  ? '<span class="nl-badge paid">⊘ Paywalled</span>' :
-                            '<span class="nl-badge nodoi">No DOI</span>';
+                            `<span class="nl-badge nodoi">No DOI</span>${docTypeBadge}`;
 
     const pdfBtn = (section === 'free' && p.pdf)
       ? `<button class="nl-pdf-btn" onclick="window.open('${esc(p.pdf)}','_blank')">Open PDF ↗</button>`
@@ -1839,6 +1842,28 @@ function renderList(type, items, filter, sort) {
         </div>`
       : '';
 
+    // Detect document type for Other Sources
+    const docType = (() => {
+      if (section !== 'other') return '';
+      const j = (p.journal || p.source || '').toLowerCase();
+      const t = (p.title || '').toLowerCase();
+      if (j.includes('thesis') || j.includes('dissertation') || 
+          t.includes('thesis') || t.includes('dissertation')) return 'Thesis';
+      if (j.includes('report') || t.includes('report')) return 'Report';
+      if (j.includes('conference') || j.includes('proceedings') || 
+          j.includes('symposium')) return 'Conference Paper';
+      if (j.includes('preprint') || j.includes('arxiv') || 
+          j.includes('biorxiv')) return 'Preprint';
+      if (j.includes('book') || j.includes('chapter')) return 'Book Chapter';
+      if (j.includes('newsletter') || j.includes('bulletin')) return 'Newsletter';
+      if (j.includes('manual') || j.includes('guide')) return 'Manual';
+      return 'Paper';
+    })();
+
+    const docTypeBadge = (section === 'other' && docType)
+      ? `<span class="bdg" style="background:var(--parch-dark);color:var(--ink-faint);margin-left:4px">${docType}</span>`
+      : '';
+
     const checkAttr = section === 'other'
       ? `data-check-title="${encodeURIComponent(p.title||'')}"` +
         ` data-check-authors="${encodeURIComponent(p.authors||'')}"` +
@@ -1847,12 +1872,13 @@ function renderList(type, items, filter, sort) {
         ` data-check-abstract="${encodeURIComponent(p.abstract||'')}"`
       : '';
 
-    return `<div class="nl-card" ${checkAttr} data-doi="${esc(p.doi || '')}" ${p.free === true ? 'style="border-left:3px solid var(--green)"' : ''}>
-      ${viewBtn}
-      <div class="nl-title">${p.title || 'Untitled'}</div>
-      ${meta ? `<div class="nl-meta">${meta}</div>` : ''}
-      <div class="nl-footer">${badge}${pdfBtn}</div>
-      ${searchWrap}
+    return `<div class="nl-card" ${checkAttr} data-doi="${esc(p.doi || '')}" style="${section === 'free' ? 'border-left:3px solid var(--green)' : ''}">
+      <div class="nl-body">
+        <div class="nl-title">${p.title || 'Untitled'}</div>
+        ${meta ? `<div class="nl-meta">${meta}</div>` : ''}
+        <div class="nl-footer">${badge}${pdfBtn}${searchWrap}</div>
+      </div>
+      <div class="nl-action">${viewBtn}</div>
     </div>`;
   };
 
@@ -1970,31 +1996,31 @@ async function checkOtherSources(cardEl, title, authors, year) {
     }
 
     if (pdfUrl) {
+      // Green left border
       cardEl.style.borderLeft = '3px solid var(--green)';
 
-      const noDoi = cardEl.querySelector('.bdg');
-      const freeBadge = document.createElement('span');
-      freeBadge.className = 'bdg oa';
-      freeBadge.style.marginRight = '6px';
-      freeBadge.textContent = '✓ Free version found';
-      if (noDoi && noDoi.parentNode) {
-        noDoi.parentNode.insertBefore(freeBadge, noDoi);
+      // Insert free badge BEFORE the No DOI badge in nl-footer
+      const nlFooter = cardEl.querySelector('.nl-footer');
+      if (nlFooter) {
+        const freeBadge = document.createElement('span');
+        freeBadge.className = 'bdg oa';
+        freeBadge.style.marginRight = '6px';
+        freeBadge.textContent = '\u2713 Free version found';
+        nlFooter.insertBefore(freeBadge, nlFooter.firstChild);
       }
 
-      const actionArea = cardEl.querySelector('.nl-action')
-        || cardEl.querySelector('[class*="action"]')
-        || cardEl.querySelector('.ract');
-
+      // Find nl-action div (now always present from makeCard fix)
+      const actionArea = cardEl.querySelector('.nl-action');
       if (actionArea) {
         const viewBtn = document.createElement('button');
-        viewBtn.className = 'bvw';
-        viewBtn.textContent = 'View Paper →';
+        viewBtn.className = 'nl-view-btn';
+        viewBtn.textContent = 'View Paper \u2192';
         viewBtn.onclick = (e) => {
           e.stopPropagation();
-          foundDoi
-            ? loadFromList(foundDoi, pdfUrl)
-            : window.open(pdfUrl, '_blank');
+          if (foundDoi) loadFromList(foundDoi, pdfUrl);
+          else window.open(pdfUrl, '_blank');
         };
+        // Insert at top of action area
         actionArea.insertBefore(viewBtn, actionArea.firstChild);
       }
     }
