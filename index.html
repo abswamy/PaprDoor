@@ -954,7 +954,7 @@ function reconstructAbstract(inv) {
   return words.filter(Boolean).join(' ');
 }
 
-let cp=null,fr=false,ar=[];
+let cp=null,fr=false,ar=[], allResults=[];
 let lastSearch={}, currentPage=1, totalResults=0;
 let nlSort={ refs:'year-desc', cites:'year-desc' };
 let navHistory=[], currentRP='';
@@ -1104,6 +1104,23 @@ function getBestPdfUrl(unpaywallData) {
   return unpaywallData.best_oa_location?.url_for_pdf || null;
 }
 
+function isTrulyFree(uwData, oaUrl) {
+  if (uwData && uwData.is_oa) {
+    const pdf = getBestPdfUrl(uwData);
+    if (pdf) return { free: true, pdf: pdf };
+  }
+  if (oaUrl && (
+    oaUrl.endsWith('.pdf') ||
+    oaUrl.includes('europepmc') ||
+    oaUrl.includes('arxiv.org') ||
+    oaUrl.includes('biorxiv.org') ||
+    oaUrl.includes('medrxiv.org') ||
+    oaUrl.includes('zenodo.org') ||
+    oaUrl.includes('ncbi.nlm.nih.gov/pmc')
+  )) return { free: true, pdf: oaUrl };
+  return { free: false, pdf: null };
+}
+
 async function fetchEuropePMC(doi) {
   const res = await fetch(
     'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:'
@@ -1204,25 +1221,20 @@ async function fetchDOI(doi) {
 
     if (!title) throw new Error('NOT_FOUND');
 
-    // ── OA status: Unpaywall > OpenAlex > EuropePMC ──
-    let isOA = false, oaUrl = null, oaUrlFromOpenAlex = null;
-
-    if (oaData) {
-      isOA             = !!(oaData.open_access?.is_oa);
-      oaUrlFromOpenAlex = oaData.open_access?.oa_url || null;
-    }
+    // ── OA status: isTrulyFree check ──
+    let uwDataParsed = null;
     if (uwRes.status === 'fulfilled' && uwRes.value.ok) {
-      const uwData = await uwRes.value.json();
-      if (uwData.is_oa) {
-        isOA  = true;
-        oaUrl = getBestPdfUrl(uwData); // prioritises PMC/arXiv/bioRxiv direct PDFs
-      }
+      uwDataParsed = await uwRes.value.json();
     }
+    const openalexOaUrl = oaData?.open_access?.oa_url || null;
+    const oaCheck = isTrulyFree(uwDataParsed, openalexOaUrl);
+    let isOA = oaCheck.free;
+    let oaUrl = oaCheck.pdf;
+
     if (!isOA && epmcRes.status === 'fulfilled' && epmcRes.value.oa) {
       isOA  = true;
       oaUrl = oaUrl || epmcRes.value.pdf;
     }
-    oaUrl = oaUrl || oaUrlFromOpenAlex;
 
     // ── References & citations ──
     const mapSS = (items) => (items || []).map((item, i) => ({
@@ -1395,63 +1407,151 @@ function searchByTitleFallback(query) {
   const kw = $('kw-input');
   if (kw) { kw.value = query; kw.focus(); }
 }
-async function searchKeywords(page, params) {
-  page = page || 1;
-  const kw     = (params?.kw)     || $('kw-input')?.value.trim()   || '';
-  const auth   = (params?.auth)   || ($('auth-input')?.value   || '').trim();
-  const yrFrom = (params?.yrFrom) || ($('yr-from')?.value      || '').trim();
-  const yrTo   = (params?.yrTo)   || ($('yr-to')?.value        || '').trim();
-  const access = (params?.access) || $('access-sel')?.value    || '';
+async function searchKeywords() {
+  const kw = $('kw-input')?.value.trim();
   if (!kw) return;
 
-  // Save for pagination re-use
-  lastSearch = { kw, auth, yrFrom, yrTo, access };
-  currentPage = page;
+  const author = $('auth-input')?.value.trim();
+  const yrFrom = $('yr-from')?.value;
+  const yrTo   = $('yr-to')?.value;
+  const access = $('access-filter')?.value;
 
   loading(true);
   try {
-    const filters = [];
-    if (auth)           filters.push(`author.search:${encodeURIComponent(auth)}`);
-    if (yrFrom && yrTo) filters.push(`publication_year:${yrFrom}-${yrTo}`);
-    else if (yrFrom)    filters.push(`publication_year:>${parseInt(yrFrom) - 1}`);
-    else if (yrTo)      filters.push(`publication_year:<${parseInt(yrTo) + 1}`);
-    if (access === 'Open access only') filters.push('is_oa:true');
-    else if (access === 'Paywalled only') filters.push('is_oa:false');
+    let oaUrl = 'https://api.openalex.org/works?search='
+      + encodeURIComponent(kw)
+      + '&per_page=10&mailto=hello@paprdoor.org'
+      + '&select=id,doi,title,authorships,publication_year,'
+      + 'primary_location,open_access,abstract_inverted_index,'
+      + 'best_oa_location';
+    if (author) oaUrl += '&filter=author.display_name.search:' + encodeURIComponent(author);
+    if (yrFrom && yrTo) oaUrl += '&filter=publication_year:' + yrFrom + '-' + yrTo;
+    if (access === 'oa') oaUrl += '&filter=is_oa:true';
 
-    let url = `https://api.openalex.org/works?search=${encodeURIComponent(kw)}`
-            + `&per_page=20&page=${page}`
-            + `&select=doi,title,authorships,publication_year,open_access,abstract_inverted_index,primary_location,best_oa_location`
-            + `&sort=cited_by_count:desc`
-            + `&mailto=hello@paprdoor.org`;
-    if (filters.length) url += `&filter=${filters.join(',')}`;
+    const [oaRes, ssRes, epRes] = await Promise.allSettled([
+      fetch(oaUrl),
+      fetch('https://api.semanticscholar.org/graph/v1/paper/search?query='
+        + encodeURIComponent(kw)
+        + '&fields=title,authors,year,externalIds,'
+        + 'openAccessPdf,publicationVenue&limit=10'),
+      fetch('https://www.ebi.ac.uk/europepmc/webservices/rest/search?query='
+        + encodeURIComponent(kw)
+        + '&format=json&resultType=core&pageSize=10')
+    ]);
 
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('OpenAlex search failed');
-    const data = await res.json();
+    const seen = new Set();
+    const merged = [];
 
-    totalResults = data.meta?.count || 0;
+    function addIfNew(doi, title, paper) {
+      if (doi && seen.has(doi)) return;
+      const cleanTitle = (title||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      if (cleanTitle.length > 20 &&
+          merged.some(m =>
+            (m.title||'').toLowerCase().replace(/[^a-z0-9]/g,'') === cleanTitle
+          )) return;
+      if (doi) seen.add(doi);
+      merged.push(paper);
+    }
 
-    const results = (data.results || []).map((w, i) => ({
-      id: w.id,
-      doi:      (w.doi || '').replace('https://doi.org/', '') || null,
-      title:    w.title || 'Untitled',
-      authors:  (w.authorships || []).slice(0, 4)
-                  .map(a => a.author?.display_name || '').filter(Boolean).join(', '),
-      abstract: reconstructAbstract(w.abstract_inverted_index) || 'No abstract available.',
-      year:     w.publication_year || '',
-      journal:  w.primary_location?.source?.display_name || '',
-      free:     !!(w.open_access?.is_oa),
-      pdf:      (w.open_access?.oa_url?.endsWith('.pdf') ? w.open_access.oa_url : null) || w.best_oa_location?.url_for_pdf || w.open_access?.oa_url || null
-    }));
+    if (oaRes.status === 'fulfilled') {
+      const data = await oaRes.value.json();
+      (data.results || []).forEach(w => {
+        const doi = w.doi?.replace('https://doi.org/','');
+        const bestOaUrl = w.best_oa_location?.url_for_pdf ||
+          (w.open_access?.oa_url?.endsWith('.pdf') ? w.open_access.oa_url : null) ||
+          w.open_access?.oa_url || null;
+        const check = isTrulyFree(null, bestOaUrl);
+        addIfNew(doi, w.title, {
+          id: w.id, doi,
+          title: w.title,
+          authors: (w.authorships||[]).map(a=>a.author?.display_name).filter(Boolean).join(', '),
+          year: w.publication_year,
+          journal: w.primary_location?.source?.display_name||'',
+          free: w.open_access?.is_oa && !!bestOaUrl,
+          pdf: bestOaUrl,
+          abstract: w.abstract_inverted_index
+            ? reconstructAbstract(w.abstract_inverted_index)
+            : 'Abstract not available.',
+          source: 'OpenAlex'
+        });
+      });
+    }
 
-    if (results.length === 0 && page === 1) {
+    if (ssRes.status === 'fulfilled') {
+      const data = await ssRes.value.json();
+      (data.data || []).forEach(p => {
+        const doi = p.externalIds?.DOI;
+        addIfNew(doi, p.title, {
+          id: p.paperId, doi,
+          title: p.title,
+          authors: (p.authors||[]).map(a=>a.name).join(', '),
+          year: p.year,
+          journal: p.publicationVenue?.name||'',
+          free: !!p.openAccessPdf?.url,
+          pdf: p.openAccessPdf?.url||null,
+          abstract: 'Abstract not available.',
+          source: 'Semantic Scholar'
+        });
+      });
+    }
+
+    if (epRes.status === 'fulfilled') {
+      const data = await epRes.value.json();
+      (data.resultList?.result||[]).forEach(r => {
+        const isOA = r.isOpenAccess==='Y' && !!r.pmcid;
+        addIfNew(r.doi, r.title, {
+          id: r.id, doi: r.doi||null,
+          title: r.title,
+          authors: r.authorString||'',
+          year: r.pubYear ? parseInt(r.pubYear) : null,
+          journal: r.journalTitle||'',
+          free: isOA,
+          pdf: isOA ? 'https://europepmc.org/articles/'+r.pmcid+'?pdf=render' : null,
+          abstract: r.abstractText||'Abstract not available.',
+          source: 'EuropePMC'
+        });
+      });
+    }
+
+    if (merged.length === 0) {
       toast('No papers found. Try different keywords.');
+      loading(false);
       return;
     }
-    renderResults(kw, results, page, totalResults);
-  } catch (e) {
-    console.error(e);
-    toast('Search failed. Check your connection and try again.');
+
+    function score(p) {
+      let s = 0;
+      const q = kw.toLowerCase();
+      const t = (p.title||'').toLowerCase();
+      if (t.includes(q)) s += 10;
+      if (t.startsWith(q)) s += 5;
+      const age = new Date().getFullYear()-(p.year||2000);
+      s += Math.max(0, 10 - age * 0.5);
+      if (p.free && p.pdf) s += 3;
+      if (p.abstract !== 'Abstract not available.') s += 2;
+      return s;
+    }
+    merged.sort((a,b) => score(b) - score(a));
+
+    const toVerify = merged.filter(r=>r.doi).slice(0,8);
+    await Promise.allSettled(toVerify.map(async paper => {
+      try {
+        const res = await fetch(
+          'https://api.unpaywall.org/v2/' + paper.doi + '?email=hello@paprdoor.org'
+        );
+        const data = await res.json();
+        const bestPdf = getBestPdfUrl(data);
+        paper.free = !!(data.is_oa && bestPdf);
+        paper.pdf = bestPdf || (paper.free ? paper.pdf : null);
+        if (!data.is_oa) { paper.free = false; paper.pdf = null; }
+      } catch(e) {}
+    }));
+
+    allResults = merged;
+    renderResults(kw, merged);
+
+  } catch(e) {
+    toast('Search failed. Please try again.');
   } finally {
     loading(false);
   }
@@ -1460,8 +1560,9 @@ async function searchKeywords(page, params) {
 function reSearch() {
   const q = ($('rqt')?.value || '').trim();
   if (!q) return;
-  lastSearch = { ...lastSearch, kw: q };
-  searchKeywords(1, lastSearch);
+  const ki = $('kw-input');
+  if (ki) ki.value = q;
+  searchKeywords();
 }
 
 function goPage(p) {
