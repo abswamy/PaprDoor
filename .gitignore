@@ -1,0 +1,18 @@
+# API keys — never commit
+.env
+.env.local
+
+# Mac system files
+.DS_Store
+.DS_Store?
+._*
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Vercel
+.vercel
+
+# Logs
+*.log
