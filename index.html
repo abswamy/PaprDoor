@@ -631,7 +631,7 @@ embed.pdfframe { flex: 1; border: none; width: 100%; min-height: 300px; }
 .nl-card:hover { border-color: var(--navy); box-shadow: var(--sh-sm); }
 .nl-card { display: flex; align-items: flex-start; gap: 12px; }
 .nl-body { flex: 1; min-width: 0; }
-.nl-action { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.nl-action { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 120px; }
 .nl-title {
   font-family: 'DM Sans', sans-serif;
   font-size: 13px; font-weight: 600; color: var(--ink);
@@ -1264,7 +1264,7 @@ async function fetchDOI(doi) {
       id:      item.externalIds?.DOI || `ss_${i}`,
       doi:     item.externalIds?.DOI || null,
       title:   item.title || 'Untitled',
-      authors: (item.authors || []).map(a => a.name).join(', '),
+      authors: [...new Set((item.authors || []).map(a => a.name).filter(Boolean))].join(', '),
       year:    item.year || null,
       free:    !!item.openAccessPdf?.url,
       journal: item.journal?.name || ''
@@ -1842,25 +1842,20 @@ function renderList(type, items, filter, sort) {
         </div>`
       : '';
 
-    // Detect document type for Other Sources
     const docType = (() => {
       if (section !== 'other') return '';
-      const j = (p.journal || p.source || '').toLowerCase();
+      const j = (p.journal || '').toLowerCase();
       const t = (p.title || '').toLowerCase();
-      if (j.includes('thesis') || j.includes('dissertation') || 
+      if (j.includes('thesis') || j.includes('dissertation') ||
           t.includes('thesis') || t.includes('dissertation')) return 'Thesis';
       if (j.includes('report') || t.includes('report')) return 'Report';
-      if (j.includes('conference') || j.includes('proceedings') || 
-          j.includes('symposium')) return 'Conference Paper';
-      if (j.includes('preprint') || j.includes('arxiv') || 
+      if (j.includes('conference') || j.includes('proceedings')) return 'Conference Paper';
+      if (j.includes('preprint') || j.includes('arxiv') ||
           j.includes('biorxiv')) return 'Preprint';
       if (j.includes('book') || j.includes('chapter')) return 'Book Chapter';
-      if (j.includes('newsletter') || j.includes('bulletin')) return 'Newsletter';
-      if (j.includes('manual') || j.includes('guide')) return 'Manual';
       return 'Paper';
     })();
-
-    const docTypeBadge = (section === 'other' && docType)
+    const docTypeBadge = section === 'other'
       ? `<span class="bdg" style="background:var(--parch-dark);color:var(--ink-faint);margin-left:4px">${docType}</span>`
       : '';
 
@@ -1996,10 +1991,9 @@ async function checkOtherSources(cardEl, title, authors, year) {
     }
 
     if (pdfUrl) {
-      // Green left border
       cardEl.style.borderLeft = '3px solid var(--green)';
 
-      // Insert free badge BEFORE the No DOI badge in nl-footer
+      // Add free badge to nl-footer before No DOI badge
       const nlFooter = cardEl.querySelector('.nl-footer');
       if (nlFooter) {
         const freeBadge = document.createElement('span');
@@ -2009,18 +2003,18 @@ async function checkOtherSources(cardEl, title, authors, year) {
         nlFooter.insertBefore(freeBadge, nlFooter.firstChild);
       }
 
-      // Find nl-action div (now always present from makeCard fix)
+      // Add View Paper button to nl-action
       const actionArea = cardEl.querySelector('.nl-action');
       if (actionArea) {
         const viewBtn = document.createElement('button');
         viewBtn.className = 'nl-view-btn';
+        viewBtn.style.cssText = 'background:var(--navy);color:white;border:none;border-radius:4px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.2px;white-space:nowrap';
         viewBtn.textContent = 'View Paper \u2192';
         viewBtn.onclick = (e) => {
           e.stopPropagation();
           if (foundDoi) loadFromList(foundDoi, pdfUrl);
           else window.open(pdfUrl, '_blank');
         };
-        // Insert at top of action area
         actionArea.insertBefore(viewBtn, actionArea.firstChild);
       }
     }
