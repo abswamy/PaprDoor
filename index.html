@@ -1972,37 +1972,28 @@ async function checkOtherSources(cardEl, title, authors, year) {
     if (pdfUrl) {
       cardEl.style.borderLeft = '3px solid var(--green)';
 
-      const meta = cardEl.querySelector('.nl-meta');
+      const existingBadge = cardEl.querySelector('.bdg');
       const freeBadge = document.createElement('span');
       freeBadge.className = 'bdg oa';
-      freeBadge.style.cssText = 'margin-top:6px;display:inline-block;margin-right:6px';
       freeBadge.textContent = '✓ Free version found';
-      if (meta) meta.after(freeBadge);
-
-      const actionDiv = document.createElement('div');
-      actionDiv.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto;flex-shrink:0';
-
-      if (foundDoi) {
-        const viewBtn = document.createElement('button');
-        viewBtn.className = 'nl-view-btn';
-        viewBtn.textContent = 'View Paper →';
-        viewBtn.onclick = () => loadFromList(foundDoi, pdfUrl);
-        actionDiv.appendChild(viewBtn);
+      if (existingBadge) {
+        existingBadge.parentNode.insertBefore(freeBadge, existingBadge);
       }
 
-      const pdfBtn = document.createElement('button');
-      pdfBtn.className = 'nl-view-btn';
-      pdfBtn.style.background = 'var(--green)';
-      pdfBtn.textContent = 'Open PDF ↗';
-      pdfBtn.onclick = () => window.open(pdfUrl, '_blank');
-      actionDiv.appendChild(pdfBtn);
+      let actionArea = cardEl.querySelector('.nl-action');
+      if (!actionArea) {
+        actionArea = document.createElement('div');
+        actionArea.className = 'nl-action';
+        cardEl.appendChild(actionArea);
+      }
 
-      cardEl.style.display = 'flex';
-      cardEl.style.alignItems = 'flex-start';
-      cardEl.style.gap = '12px';
-      const leftDiv = cardEl.querySelector('.nl-left') || cardEl.firstElementChild;
-      if (leftDiv) leftDiv.style.flex = '1';
-      cardEl.appendChild(actionDiv);
+      const viewBtn = document.createElement('button');
+      viewBtn.className = 'nl-view-btn';
+      viewBtn.textContent = 'View Paper →';
+      viewBtn.onclick = () => foundDoi
+        ? loadFromList(foundDoi, pdfUrl)
+        : window.open(pdfUrl, '_blank');
+      actionArea.appendChild(viewBtn);
     }
   } catch(e) {}
 }
