@@ -1420,7 +1420,7 @@ async function searchKeywords(page, params) {
 
     let url = `https://api.openalex.org/works?search=${encodeURIComponent(kw)}`
             + `&per_page=20&page=${page}`
-            + `&select=doi,title,authorships,publication_year,open_access,abstract_inverted_index,primary_location`
+            + `&select=doi,title,authorships,publication_year,open_access,abstract_inverted_index,primary_location,best_oa_location`
             + `&sort=cited_by_count:desc`
             + `&mailto=hello@paprdoor.org`;
     if (filters.length) url += `&filter=${filters.join(',')}`;
@@ -1441,7 +1441,7 @@ async function searchKeywords(page, params) {
       year:     w.publication_year || '',
       journal:  w.primary_location?.source?.display_name || '',
       free:     !!(w.open_access?.is_oa),
-      pdf:      w.open_access?.oa_url || null
+      pdf:      (w.open_access?.oa_url?.endsWith('.pdf') ? w.open_access.oa_url : null) || w.best_oa_location?.url_for_pdf || w.open_access?.oa_url || null
     }));
 
     if (results.length === 0 && page === 1) {
@@ -1505,8 +1505,35 @@ function renderResults(q, res, page, total) {
 
   showPage('pg-results');
 }
+async function openResultPdf(doi, pdf) {
+  if (pdf && pdf.endsWith('.pdf')) {
+    window.open(pdf, '_blank');
+    return;
+  }
+  if (doi) {
+    try {
+      loading(true);
+      const res = await fetch(
+        'https://api.unpaywall.org/v2/' + doi + '?email=hello@paprdoor.org'
+      );
+      const data = await res.json();
+      const bestPdf = getBestPdfUrl(data);
+      if (bestPdf) {
+        window.open(bestPdf, '_blank');
+        return;
+      }
+    } catch(e) {}
+    finally { loading(false); }
+  }
+  if (pdf) {
+    window.open(pdf, '_blank');
+  } else {
+    toast('No PDF available for this paper.');
+  }
+}
+
 function renderCards(list) {
-  $("rl").innerHTML = list.map(p => `<div class="rc" onclick="handleResultClick('${p.doi}','${(p.title||'').replace(/'/g,"&#39;")}')"><div class="rdot ${p.free ? "oa" : "pd"}"></div><div class="rbdy"><div class="rtl">${p.title}</div><div class="rau">${p.authors}</div><div class="rab">${p.abstract}</div><div class="rmr"><span class="bdg ${p.free ? "oa" : "pd"}">${p.free ? "✓ Open Access" : "⊘ Paywalled"}</span><span class="bdg yr">${p.year}</span><span class="bdg jn">${p.journal}</span><span class="bdg doi">${p.doi || ""}</span></div></div><div class="ract"><button class="bvw">View →</button>${p.free ? `<button class="bdl" onclick="event.stopPropagation();window.open('${p.pdf}','_blank')">PDF ↓</button>` : ""}</div></div>`).join("");
+  $("rl").innerHTML = list.map(p => `<div class="rc" onclick="handleResultClick('${p.doi}','${(p.title||'').replace(/'/g,"&#39;")}')"><div class="rdot ${p.free ? "oa" : "pd"}"></div><div class="rbdy"><div class="rtl">${p.title}</div><div class="rau">${p.authors}</div><div class="rab">${p.abstract}</div><div class="rmr"><span class="bdg ${p.free ? "oa" : "pd"}">${p.free ? "✓ Open Access" : "⊘ Paywalled"}</span><span class="bdg yr">${p.year}</span><span class="bdg jn">${p.journal}</span><span class="bdg doi">${p.doi || ""}</span></div></div><div class="ract"><button class="bvw">View →</button>${p.free && p.doi ? `<button class="bdl" onclick="event.stopPropagation();openResultPdf('${p.doi}','${p.pdf||''}')">PDF ↓</button>` : ""}</div></div>`).join("");
 }
 function filterR(type, el) {
   document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
