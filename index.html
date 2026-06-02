@@ -1915,17 +1915,19 @@ function renderLeft(p) {
   const contactLabel = p.orcid ? 'ORCID Profile' : 'Find Contact Info';
 
   $("lp-body").innerHTML = `
-    ${p.oa ? `<div class="ab oa" style="display:flex;align-items:center;gap:12px">
-      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
-        <div class="ab-icon">✓</div>
-        <div style="min-width:0">
-          <div class="ab-title oa">Free version available</div>
-          <div class="ab-sub" id="ab-subtitle">Open Access · via Unpaywall / OpenAlex · Direct PDF link</div>
+    ${p.oa ? `<div class="ab oa">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="ab-icon">✓</div>
+          <div>
+            <div class="ab-title oa">Free version available</div>
+            <div class="ab-sub" id="ab-subtitle">Open Access · via Unpaywall / OpenAlex · Direct PDF link</div>
+          </div>
         </div>
-      </div>
-      <div style="display:flex;gap:8px;flex-shrink:0">
-        <button class="btn-action btn-download" onclick="window.open(cp?.pdf,'_blank')">↓ Download PDF</button>
-        <button class="btn-action btn-preview" id="pt-btn" onclick="openRP('preview')">⊞ Preview</button>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn-action btn-download" onclick="window.open(cp?.pdf,'_blank')">↓ Download PDF</button>
+          <button class="btn-action btn-preview" id="pt-btn" onclick="openRP('preview')">⊞ Preview</button>
+        </div>
       </div>
     </div>` : `<div class="ab nf">
       <div class="ab-icon">⊘</div>
