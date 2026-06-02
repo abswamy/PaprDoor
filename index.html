@@ -1365,11 +1365,13 @@ async function searchDirect(doi) {
   if (!q) return;
   const old = $('search-error');
   if (old) old.remove();
+  navHistory = [];
+  currentRP = '';
   loading(true);
   try {
     const paper = await fetchDOI(q);
     fr = false;
-    loadPaper(paper);
+    loadPaper(paper, true);
   } catch (e) {
     console.error(e);
     if (e.message === 'NOT_FOUND') showNotFoundError(q);
@@ -1413,6 +1415,7 @@ function searchByTitleFallback(query) {
 async function searchKeywords() {
   const kw = $('kw-input')?.value.trim();
   if (!kw) return;
+  navHistory = [];
 
   const author = $('auth-input')?.value.trim();
   const yrFrom = $('yr-from')?.value;
