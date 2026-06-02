@@ -959,7 +959,21 @@ function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';set
 function loading(on){$('lbar').style.display=on?'block':'none'}
 function trunc(s,n){return s&&s.length>n?s.slice(0,n)+'…':s||''}
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));const t=$(id);if(t)t.classList.add('active')}
-function goHome(){const old=$('search-error');if(old)old.remove();showPage('pg-home');fr=false;navHistory=[];currentRP='';}
+function goHome() {
+  const old = $('search-error');
+  if (old) old.remove();
+  showPage('pg-home');
+  fr = false;
+  navHistory = [];
+  currentRP = '';
+  switchMode('doi');
+  const doiInput = document.getElementById('doi-input');
+  const kwInput = document.getElementById('kw-input');
+  const authInput = document.getElementById('auth-input');
+  if (doiInput) doiInput.value = '';
+  if (kwInput) kwInput.value = '';
+  if (authInput) authInput.value = '';
+}
 function goResults(){if(fr)showPage('pg-results')}
 
 function updateNav() {
@@ -1001,11 +1015,18 @@ function updateNav() {
 }
 
 function goBack() {
-  if (!navHistory.length) return;
+  if (!navHistory.length) {
+    goHome();
+    return;
+  }
   const { paper, networkType } = navHistory.pop();
-  loadPaper(paper, true);          // skipHistory=true — don't re-push
-  if (networkType === 'refs' || networkType === 'cites' || networkType === 'preview') {
-    openRP(networkType);
+  if (!paper) {
+    goHome();
+    return;
+  }
+  loadPaper(paper, true);
+  if (networkType && networkType !== '') {
+    setTimeout(() => openRP(networkType), 300);
   }
 }
 
@@ -1783,7 +1804,12 @@ function showPdfFallback() {
   const iframe = document.getElementById('pdfembed');
   const fb = document.getElementById('pdffb');
   if (iframe) iframe.style.display = 'none';
-  if (fb) fb.style.display = 'flex';
+  if (fb) {
+    fb.style.display = 'flex';
+    fb.style.flexDirection = 'column';
+    fb.style.alignItems = 'center';
+    fb.style.justifyContent = 'center';
+  }
 }
 
 function renderPDF(p) {
@@ -1834,22 +1860,31 @@ function renderPDF(p) {
       const showFallback = () => {
         if (settled) return;
         settled = true;
-        iframe.style.display = 'none';
-        fb.style.display = 'flex';
+        showPdfFallback();
       };
-      // 800ms backstop: show fallback if iframe never fires onload (publisher hard-blocking)
-      const blockTimer = setTimeout(showFallback, 800);
-      iframe.onerror = () => { clearTimeout(blockTimer); showFallback(); };
-      iframe.onload = () => {
-        clearTimeout(blockTimer);
+      const blockTimer = setTimeout(() => {
+        const iframe = document.getElementById('pdfembed');
+        if (!iframe) return;
         try {
-          const doc = iframe.contentDocument;
-          if (doc && (!doc.body || doc.body.innerHTML.trim() === '')) {
+          const doc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (!doc || doc.title === '' || doc.body?.innerHTML?.trim() === '') {
             showFallback();
           }
-        } catch(e) {
-          // Cross-origin: server responded — arXiv/PMC/bioRxiv embed fine, keep iframe
-        }
+        } catch(e) {}
+      }, 1500);
+      iframe.onerror = () => { clearTimeout(blockTimer); showFallback(); };
+      iframe.onload = function() {
+        clearTimeout(blockTimer);
+        try {
+          const doc = this.contentDocument;
+          if (doc && (
+            doc.title.includes('blocked') ||
+            doc.body?.innerHTML?.includes('blocked') ||
+            doc.body?.innerHTML?.trim() === ''
+          )) {
+            showFallback();
+          }
+        } catch(e) {}
       };
     }, 150);
   } else {
