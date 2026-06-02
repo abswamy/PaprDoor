@@ -1971,27 +1971,38 @@ async function checkOtherSources(cardEl, title, authors, year) {
 
     if (pdfUrl) {
       cardEl.style.borderLeft = '3px solid var(--green)';
-      const badge = document.createElement('span');
-      badge.className = 'bdg oa';
-      badge.textContent = '✓ Free version found';
-      badge.style.cssText = 'margin-top:6px;display:inline-block';
-      const btn = document.createElement('button');
-      btn.className = 'nl-view-btn';
-      btn.style.background = 'var(--green)';
-      btn.style.marginTop = '6px';
-      btn.textContent = 'Open PDF ↗';
-      btn.onclick = () => window.open(pdfUrl, '_blank');
+
       const meta = cardEl.querySelector('.nl-meta');
-      if (meta) { meta.after(badge); badge.after(btn); }
+      const freeBadge = document.createElement('span');
+      freeBadge.className = 'bdg oa';
+      freeBadge.style.cssText = 'margin-top:6px;display:inline-block;margin-right:6px';
+      freeBadge.textContent = '✓ Free version found';
+      if (meta) meta.after(freeBadge);
+
+      const actionDiv = document.createElement('div');
+      actionDiv.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto;flex-shrink:0';
+
       if (foundDoi) {
         const viewBtn = document.createElement('button');
         viewBtn.className = 'nl-view-btn';
-        viewBtn.style.marginTop = '6px';
-        viewBtn.style.marginLeft = '6px';
         viewBtn.textContent = 'View Paper →';
         viewBtn.onclick = () => loadFromList(foundDoi, pdfUrl);
-        btn.after(viewBtn);
+        actionDiv.appendChild(viewBtn);
       }
+
+      const pdfBtn = document.createElement('button');
+      pdfBtn.className = 'nl-view-btn';
+      pdfBtn.style.background = 'var(--green)';
+      pdfBtn.textContent = 'Open PDF ↗';
+      pdfBtn.onclick = () => window.open(pdfUrl, '_blank');
+      actionDiv.appendChild(pdfBtn);
+
+      cardEl.style.display = 'flex';
+      cardEl.style.alignItems = 'flex-start';
+      cardEl.style.gap = '12px';
+      const leftDiv = cardEl.querySelector('.nl-left') || cardEl.firstElementChild;
+      if (leftDiv) leftDiv.style.flex = '1';
+      cardEl.appendChild(actionDiv);
     }
   } catch(e) {}
 }
