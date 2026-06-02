@@ -378,12 +378,12 @@ nav a:hover { color: white; background: rgba(255,255,255,.08); }
 ══════════════════════════════════════════ */
 .pnav {
   background: white; border-bottom: 1px solid var(--rule);
-  padding: 13px 32px; display: flex; align-items: center; flex-shrink: 0;
+  padding: 9px 24px; display: flex; align-items: center; flex-shrink: 0;
 }
-.crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-faint); }
-.crumb a { color: var(--orange); text-decoration: none; font-weight: 700; cursor: pointer; font-size: 14px; }
+.crumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-faint); flex: 1; min-width: 0; overflow: hidden; }
+.crumb a { color: var(--orange); text-decoration: none; font-weight: 600; cursor: pointer; font-size: 12px; white-space: nowrap; }
 .crumb a:hover { text-decoration: underline; }
-#bc-p { font-size: 14px; color: var(--ink-soft); font-weight: 500; font-style: normal; }
+#bc-p { font-size: 12px; color: var(--ink-soft); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; display: inline-block; }
 
 /* Split layout */
 .split { flex: 1; display: flex; min-height: 0; overflow: hidden; position: relative; }
@@ -887,7 +887,7 @@ embed.pdfframe { flex: 1; border: none; width: 100%; min-height: 300px; }
   <div class="split">
     <!-- LEFT PANE -->
     <div class="lpane" id="lpane">
-      <div class="lp-topbar">
+      <div class="lp-topbar" id="lp-topbar" style="display:none">
         <div class="lp-actions" id="lp-actions"></div>
       </div>
       <div class="lp-body" id="lp-body"></div>
@@ -1740,6 +1740,7 @@ function renderLeft(p) {
       </div>
     </div>`}
     <div class="slbl">Paper</div>
+    <div class="ptitle">${p.title}</div>
     <div class="pauth">${p.authors}</div>
     <div class="pmeta">
       <span class="bdg yr">${p.year}</span>
