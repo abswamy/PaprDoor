@@ -446,10 +446,12 @@ nav a:hover { color: white; background: rgba(255,255,255,.08); }
 
 /* Access banner */
 .ab {
-  display: flex; align-items: flex-start; gap: 12px;
+  display: flex; flex-direction: column; gap: 8px;
   padding: 14px 16px; border-radius: var(--rl); margin-bottom: 20px;
   border-left: 4px solid;
 }
+.ab-top-row { display: flex; align-items: flex-start; gap: 12px; }
+.ab-actions { display: flex; gap: 10px; }
 .ab.oa { background: var(--green-light); border-color: var(--green); }
 .ab.nf { background: rgba(158,26,26,.06); border-color: var(--red); }
 .ab-icon { font-size: 20px; flex-shrink: 0; line-height: 1; margin-top: 1px; }
@@ -489,13 +491,15 @@ nav a:hover { color: white; background: rgba(255,255,255,.08); }
 .abst { font-size: 14px; line-height: 1.9; color: var(--ink-soft); }
 .aname { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 3px; font-family: 'Playfair Display', serif; }
 .aaffil { font-size: 12px; color: var(--ink-faint); margin-bottom: 12px; font-style: italic; }
-.alinks { display: flex; flex-direction: column; gap: 7px; }
+.alinks { display: flex; flex-direction: column; gap: 6px; }
 .alink {
-  display: flex; align-items: center; gap: 9px;
-  padding: 10px 14px; border-radius: var(--rm);
-  font-size: 13px; font-weight: 500; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: var(--rm);
+  font-size: 12px; font-weight: 500; cursor: pointer;
   border: 1.5px solid var(--rule-light); background: white;
   color: var(--ink-soft); transition: all .2s; text-decoration: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0; width: 100%;
 }
 .alink:hover { border-color: var(--navy); color: var(--navy); background: var(--parch); }
 .alink.em { background: var(--navy); color: white; border-color: var(--navy); }
@@ -1716,13 +1720,15 @@ function renderLeft(p) {
   const contactLabel = p.orcid ? 'ORCID Profile' : 'Find Contact Info';
 
   $("lp-body").innerHTML = `
-    ${p.oa ? `<div class="ab oa" style="align-items:center">
-      <div class="ab-icon">✓</div>
-      <div style="flex:1">
-        <div class="ab-title oa">Free version available</div>
-        <div class="ab-sub">Open Access · via Unpaywall / OpenAlex · Direct PDF link</div>
+    ${p.oa ? `<div class="ab oa">
+      <div class="ab-top-row">
+        <div class="ab-icon">✓</div>
+        <div>
+          <div class="ab-title oa">Free version available</div>
+          <div class="ab-sub">Open Access · via Unpaywall / OpenAlex · Direct PDF link</div>
+        </div>
       </div>
-      <div style="display:flex;gap:10px;flex-shrink:0">
+      <div class="ab-actions">
         <button class="btn-action btn-download" onclick="window.open(cp.pdf,'_blank')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M5 8l3 3 3-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Download PDF</button>
         <button class="btn-action btn-preview" id="pt-btn" onclick="openRP('preview')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="9" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 6h14" stroke="currentColor" stroke-width="1.2"/></svg>Preview</button>
       </div>
