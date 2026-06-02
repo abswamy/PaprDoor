@@ -1682,11 +1682,7 @@ function loadPaper(paper, skipHistory) {
 function renderLeft(p) {
   const rf = p.refs.filter(r => r.free).length;
   const cf = p.cites.filter(c => c.free).length;
-  $("lp-actions").innerHTML =
-    (p.oa ? `<button class="btn-action btn-download" onclick="window.open(cp.pdf,'_blank')">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M5 8l3 3 3-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Download PDF</button>` : '')
-    + `<button class="btn-action btn-preview" id="pt-btn" onclick="openRP('preview')">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="9" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 6h14" stroke="currentColor" stroke-width="1.2"/></svg>Preview</button>`;
+  $("lp-actions").innerHTML = `<div class="lp-paper-short">${trunc(p.title, 60)}</div>`;
 
   // Build working author-connect links
   const authorName  = p.authorName || p.authors.split(',')[0].trim();
@@ -1699,13 +1695,23 @@ function renderLeft(p) {
   const contactLabel = p.orcid ? 'ORCID Profile' : 'Find Contact Info';
 
   $("lp-body").innerHTML = `
-    <div class="ab ${p.oa ? 'oa' : 'nf'}">
-      <div class="ab-icon">${p.oa ? '✓' : '⊘'}</div>
-      <div>
-        <div class="ab-title ${p.oa ? 'oa' : 'nf'}">${p.oa ? 'Free version available' : 'No free version found'}</div>
-        <div class="ab-sub">${p.oa ? 'Open Access · via Unpaywall / OpenAlex · Direct PDF link' : 'Try Reference Excavator below or contact the author directly'}</div>
+    ${p.oa ? `<div class="ab oa" style="align-items:center">
+      <div class="ab-icon">✓</div>
+      <div style="flex:1">
+        <div class="ab-title oa">Free version available</div>
+        <div class="ab-sub">Open Access · via Unpaywall / OpenAlex · Direct PDF link</div>
       </div>
-    </div>
+      <div style="display:flex;gap:10px;flex-shrink:0">
+        <button class="btn-action btn-download" onclick="window.open(cp.pdf,'_blank')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M5 8l3 3 3-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Download PDF</button>
+        <button class="btn-action btn-preview" id="pt-btn" onclick="openRP('preview')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="9" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 6h14" stroke="currentColor" stroke-width="1.2"/></svg>Preview</button>
+      </div>
+    </div>` : `<div class="ab nf">
+      <div class="ab-icon">⊘</div>
+      <div>
+        <div class="ab-title nf">No free version found</div>
+        <div class="ab-sub">Try Reference Excavator below or contact the author directly</div>
+      </div>
+    </div>`}
     <div class="slbl">Paper</div>
     <div class="ptitle">${p.title}</div>
     <div class="pauth">${p.authors}</div>
