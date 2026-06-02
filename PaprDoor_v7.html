@@ -1,0 +1,1795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PaprDoor — Open Research Access</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,700;1,400;1,700&display=swap" rel="stylesheet"/>
+<style>
+/* ══════════════════════════════════════════
+   DESIGN TOKENS — Clean academic paper
+══════════════════════════════════════════ */
+:root {
+  /* Clean page palette */
+  --parch:       #f8f7f5;
+  --parch-dark:  #eeedea;
+  --parch-deeper:#e4e3df;
+  --ink:         #141414;
+  --ink-soft:    #3a3a3a;
+  --ink-faint:   #888888;
+  --rule:        #d2d0cb;
+  --rule-light:  #e4e3de;
+
+  /* Brand */
+  --navy:        #0a1628;
+  --navy-mid:    #162240;
+  --navy-light:  #1e3358;
+  --orange:      #c45a00;
+  --orange-light:#f07a20;
+  --orange-glow: rgba(196,90,0,.08);
+  --green:       #1a5c38;
+  --green-light: #edf5f1;
+  --red:         #9e1a1a;
+
+  /* Shadows — neutral */
+  --sh-sm:  0 1px 4px rgba(0,0,0,.06);
+  --sh-md:  0 3px 14px rgba(0,0,0,.09);
+  --sh-lg:  0 6px 28px rgba(0,0,0,.12);
+  --sh-xl:  0 12px 48px rgba(0,0,0,.16);
+
+  /* Radius — tighter, more academic */
+  --r:   2px;
+  --rm:  4px;
+  --rl:  6px;
+  --rxl: 10px;
+  --rf:  9999px;
+}
+
+/* ══ RESET + BASE ══ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--parch);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  display: flex; flex-direction: column;
+}
+
+
+/* ══ TOAST ══ */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--navy); color: white;
+  padding: 11px 20px; border-radius: var(--rl);
+  font-size: 13px; z-index: 9999; display: none;
+  box-shadow: var(--sh-lg); animation: su .2s ease;
+}
+@keyframes su { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+/* ══ LOADING BAR ══ */
+.lbar {
+  position: fixed; top: 56px; left: 0; right: 0; height: 3px;
+  background: var(--orange); z-index: 400; display: none;
+  transform-origin: left; animation: lb 1s ease forwards;
+}
+@keyframes lb { 0%{transform:scaleX(0)} 70%{transform:scaleX(.75)} 100%{transform:scaleX(1);opacity:0} }
+
+/* ══════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════ */
+header {
+  background: var(--navy);
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px;
+  flex-shrink: 0; z-index: 200;
+  position: relative;
+  border-bottom: 2px solid var(--orange);
+}
+.logo {
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer; border: none; background: none; padding: 0;
+  position: relative; z-index: 1;
+}
+.logo-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; color: white; letter-spacing: -.3px;
+  display: flex; align-items: baseline; gap: 1px;
+}
+.logo-papr { font-weight: 400; font-style: italic; color: rgba(255,255,255,.7); }
+.logo-door { font-weight: 700; font-style: normal; }
+.logo-divider { width: 1px; height: 20px; background: rgba(255,255,255,.2); margin: 0 2px; }
+.logo-tag {
+  font-size: 10px; color: rgba(255,255,255,.38);
+  letter-spacing: .8px; font-weight: 400; text-transform: uppercase;
+  font-family: 'DM Sans', sans-serif;
+}
+nav { display: flex; align-items: center; gap: 2px; position: relative; z-index: 1; }
+nav a {
+  color: rgba(255,255,255,.45); text-decoration: none;
+  font-size: 12px; font-weight: 500;
+  padding: 6px 13px; border-radius: var(--rm);
+  transition: all .2s; cursor: pointer; letter-spacing: .2px;
+}
+nav a:hover { color: white; background: rgba(255,255,255,.08); }
+.nav-github {
+  background: var(--orange); color: white !important;
+  border-radius: var(--rm); padding: 6px 14px !important;
+  font-weight: 600 !important; letter-spacing: .2px;
+}
+.nav-github:hover { background: var(--orange-light) !important; }
+
+/* ══════════════════════════════════════════
+   PAGES
+══════════════════════════════════════════ */
+.page { display: none; flex-direction: column; flex: 1; overflow: hidden; position: relative; z-index: 1; }
+.page.active { display: flex; }
+
+/* ══════════════════════════════════════════
+   PAGE 1 — HOME (the creative landing)
+══════════════════════════════════════════ */
+.hero {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 0 24px; position: relative; overflow: hidden;
+}
+
+
+.hero-inner {
+  position: relative; z-index: 2;
+  text-align: center; max-width: 720px; width: 100%;
+}
+
+/* Journal masthead style eyebrow */
+.eyebrow-wrap {
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px; margin-bottom: 20px;
+}
+.eyebrow-line { flex: 0 0 48px; height: 1px; background: var(--rule); }
+.eyebrow {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--orange);
+}
+
+/* Big editorial headline */
+.hero-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(44px, 6vw, 76px);
+  line-height: 1.02; letter-spacing: -2px;
+  color: var(--navy); margin-bottom: 8px; font-weight: 700;
+}
+.hero-title .italic-word {
+  font-style: italic; font-weight: 400;
+  color: var(--orange);
+}
+.hero-title .small-line {
+  display: block;
+  font-size: clamp(20px, 2.5vw, 32px);
+  font-weight: 400; font-style: italic;
+  color: var(--ink-faint); letter-spacing: 0;
+  margin-top: 18px;
+}
+
+.hero-rule {
+  width: 64px; height: 2px;
+  background: var(--orange);
+  margin: 18px auto 18px;
+}
+
+.hero-sub {
+  font-size: 15px; color: var(--ink-soft); line-height: 1.75;
+  margin-bottom: 32px; max-width: 520px;
+  margin-left: auto; margin-right: auto;
+  font-weight: 400;
+}
+
+/* ── Search box ── */
+.sbox {
+  width: 100%; max-width: 660px; margin: 0 auto;
+  background: white;
+  border: 1.5px solid var(--rule);
+  border-radius: var(--rl);
+  box-shadow: var(--sh-md);
+  overflow: hidden;
+}
+.mtabs {
+  display: flex; border-bottom: 1px solid var(--rule-light);
+  background: var(--parch-dark);
+}
+.mtab {
+  flex: 1; padding: 12px 16px; font-size: 12px; font-weight: 600;
+  cursor: pointer; color: var(--ink-faint);
+  border-bottom: 2px solid transparent; transition: all .2s;
+  display: flex; align-items: center; justify-content: center;
+  gap: 7px; margin-bottom: -1px; letter-spacing: .02em;
+}
+.mtab.active { color: var(--navy); background: white; border-bottom-color: var(--orange); }
+.mtab:hover:not(.active) { color: var(--ink-soft); background: var(--parch); }
+
+.mpanel { display: none; padding: 18px 20px; }
+.mpanel.active { display: block; }
+.irow { display: flex; gap: 10px; }
+
+.si {
+  flex: 1; border: 1.5px solid var(--rule-light); border-radius: var(--rm);
+  padding: 12px 14px; font-family: 'DM Sans', sans-serif;
+  font-size: 14px; color: var(--ink); background: white;
+  outline: none; transition: border-color .2s, box-shadow .2s;
+}
+.si:focus {
+  border-color: var(--navy); background: white;
+  box-shadow: 0 0 0 3px rgba(10,22,40,.07);
+}
+.si::placeholder { color: var(--ink-faint); }
+.si.sm { padding: 10px 12px; font-size: 13px; }
+.si.mono { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+
+.bp {
+  background: var(--navy); color: white; border: none;
+  border-radius: var(--rm); padding: 12px 26px;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: all .2s; white-space: nowrap;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.bp:hover { background: var(--orange); }
+.bp:active { transform: scale(.98); }
+
+.hint { font-size: 11px; color: var(--ink-faint); margin-top: 7px; font-style: italic; }
+.ag { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.ag3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.fl { display: block; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 5px; }
+
+/* Stats strip — journal masthead style */
+.stats {
+  display: flex; justify-content: center; align-items: stretch;
+  gap: 0; margin-top: 36px;
+  border: 1px solid var(--rule); border-radius: var(--rl);
+  background: white; overflow: hidden;
+  box-shadow: var(--sh-sm);
+  max-width: 660px; margin-left: auto; margin-right: auto;
+}
+.stat-item {
+  flex: 1; text-align: center; padding: 14px 8px;
+  border-right: 1px solid var(--rule-light);
+}
+.stat-item:last-child { border-right: none; }
+.sn {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px; font-weight: 700; color: var(--navy); display: block; line-height: 1;
+}
+.sl { font-size: 10px; color: var(--ink-faint); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; margin-top: 4px; display: block; }
+
+/* ══════════════════════════════════════════
+   PAGE 2.1 — RESULTS
+══════════════════════════════════════════ */
+.rh {
+  background: white; border-bottom: 1px solid var(--rule);
+  padding: 12px 32px; display: flex; align-items: center;
+  gap: 14px; flex-shrink: 0;
+}
+.bbtn {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: 1.5px solid var(--rule); border-radius: var(--rm);
+  padding: 8px 14px; font-size: 12px; font-weight: 600;
+  color: var(--ink-soft); cursor: pointer; transition: all .2s; white-space: nowrap;
+}
+.bbtn:hover { border-color: var(--navy); color: var(--navy); }
+.rq {
+  flex: 1; background: var(--parch-dark); border: 1px solid var(--rule-light);
+  border-radius: var(--rm); padding: 8px 14px;
+  display: flex; align-items: center; gap: 8px; max-width: 520px;
+}
+.rq input {
+  font-size: 13px; color: var(--ink-soft); flex: 1;
+  background: none; border: none; outline: none;
+  font-family: 'DM Sans', sans-serif; min-width: 0;
+}
+.rq input::placeholder { color: var(--ink-faint); font-style: italic; }
+.rq-go {
+  background: var(--navy); color: white; border: none;
+  border-radius: var(--r); padding: 4px 11px; font-size: 11px;
+  font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .18s;
+}
+.rq-go:hover { background: var(--navy-light); }
+.rm { font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
+.pgbar {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 20px 0 4px; flex-shrink: 0;
+}
+.pg-btn {
+  background: white; border: 1.5px solid var(--rule); border-radius: var(--rm);
+  padding: 7px 16px; font-size: 12px; font-weight: 600;
+  color: var(--ink-soft); cursor: pointer; transition: all .18s;
+}
+.pg-btn:hover:not(:disabled) { border-color: var(--navy); color: var(--navy); }
+.pg-btn:disabled { opacity: 0.35; cursor: default; }
+.pg-info { font-size: 12px; color: var(--ink-faint); min-width: 90px; text-align: center; }
+.rb { flex: 1; padding: 24px 32px; overflow-y: auto; background: var(--parch); }
+.rtr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.rt { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--navy); }
+.fb { display: flex; gap: 6px; }
+.fbtn {
+  padding: 6px 14px; border-radius: var(--rf); font-size: 11px; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; cursor: pointer;
+  border: 1.5px solid var(--rule); background: white; color: var(--ink-faint); transition: all .2s;
+}
+.fbtn.active, .fbtn:hover { background: var(--navy); color: white; border-color: var(--navy); }
+
+/* List-pane filter bar */
+.nl-filter-bar {
+  display: flex; gap: 6px; padding: 10px 16px 10px;
+  background: var(--parch); border-bottom: 1px solid var(--rule-light);
+  flex-shrink: 0;
+}
+.nl-ftab {
+  padding: 5px 13px; border-radius: var(--rf); font-size: 11px; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; cursor: pointer;
+  border: 1.5px solid var(--rule); background: white;
+  color: var(--ink-faint); transition: all .18s;
+}
+.nl-ftab:hover               { border-color: var(--navy); color: var(--navy); }
+.nl-ftab.active              { background: var(--navy); color: white; border-color: var(--navy); }
+.nl-ftab.active[data-filter="free"] { background: var(--green); border-color: var(--green); }
+.nl-ftab.active[data-filter="paid"] { background: var(--red);   border-color: var(--red); }
+.nl-sort {
+  margin-left: auto; padding: 5px 10px; font-size: 11px; font-weight: 600;
+  font-family: 'DM Sans', sans-serif; color: var(--ink-soft);
+  background: white; border: 1.5px solid var(--rule);
+  border-radius: var(--rm); cursor: pointer; outline: none;
+  transition: border-color .18s;
+}
+.nl-sort:hover, .nl-sort:focus { border-color: var(--navy); }
+
+/* Result card */
+.rc {
+  background: white; border: 1.5px solid var(--rule-light);
+  border-radius: var(--rl); padding: 16px 20px; margin-bottom: 10px;
+  cursor: pointer; transition: box-shadow .2s, border-color .2s, transform .15s;
+  display: flex; gap: 14px; align-items: flex-start;
+}
+.rc:hover { border-color: var(--navy); box-shadow: var(--sh-md); transform: translateY(-1px); }
+.rdot { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; }
+.rdot.oa { background: var(--green); }
+.rdot.pd { background: var(--ink-faint); }
+.rbdy { flex: 1; min-width: 0; }
+.rtl { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; color: var(--navy); line-height: 1.35; margin-bottom: 5px; }
+.rau { font-size: 12px; color: var(--orange); font-weight: 600; margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; }
+.rab { font-size: 13px; color: var(--ink-soft); line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 10px; }
+.rmr { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* Badges */
+.bdg { display: inline-flex; align-items: center; border-radius: var(--rm); padding: 3px 9px; font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.bdg.oa { background: var(--green-light); color: var(--green); }
+.bdg.pd { background: var(--parch-dark); color: var(--ink-faint); }
+.bdg.yr { background: var(--navy); color: white; font-family: 'JetBrains Mono', monospace; }
+.bdg.jn { background: var(--orange-glow); color: var(--orange); border: 1px solid rgba(196,90,0,.2); }
+.bdg.doi { font-family: 'JetBrains Mono', monospace; font-size: 10px; background: var(--parch); color: var(--ink-faint); border: 1px solid var(--rule-light); }
+
+.ract { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.bvw { background: var(--navy); color: white; border: none; border-radius: var(--rm); padding: 8px 16px; font-size: 12px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: .3px; }
+.bvw:hover { background: var(--orange); }
+.bdl { background: var(--green); color: white; border: none; border-radius: var(--rm); padding: 6px 13px; font-size: 12px; font-weight: 700; cursor: pointer; text-transform: uppercase; }
+.bdl:hover { opacity: .85; }
+
+/* ══════════════════════════════════════════
+   PAGE 2 — PAPER VIEW
+══════════════════════════════════════════ */
+.pnav {
+  background: white; border-bottom: 1px solid var(--rule);
+  padding: 13px 32px; display: flex; align-items: center; flex-shrink: 0;
+}
+.crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-faint); }
+.crumb a { color: var(--orange); text-decoration: none; font-weight: 700; cursor: pointer; font-size: 14px; }
+.crumb a:hover { text-decoration: underline; }
+#bc-p { font-size: 14px; color: var(--ink-soft); font-weight: 500; font-style: normal; }
+
+/* Split layout */
+.split { flex: 1; display: flex; min-height: 0; overflow: hidden; position: relative; }
+
+/* Draggable Divider */
+.split-divider {
+  width: 4px;
+  background: var(--rule);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background .2s;
+  display: none;
+  z-index: 100;
+}
+.split-divider:hover, .split-divider.active {
+  background: var(--orange);
+}
+.lpane.rp-open ~ .split-divider {
+  display: block;
+}
+
+/* LEFT PANE */
+.lpane {
+  display: flex; flex-direction: column;
+  background: var(--parch); flex-shrink: 0;
+  width: 100%; overflow: hidden;
+}
+.lpane.rp-open { width: 480px; transition: width .35s cubic-bezier(.4,0,.2,1); }
+.lpane.rp-open.resized { transition: none; }
+
+/* Fixed topbar */
+.lp-topbar {
+  background: white; border-bottom: 2px solid var(--rule);
+  padding: 12px 22px; display: flex; align-items: center;
+  justify-content: flex-end; gap: 12px; flex-shrink: 0;
+}
+.lp-paper-short {
+  flex: 1; font-family: 'Playfair Display', serif;
+  font-size: 14px; color: var(--navy); font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.lp-actions { display: flex; gap: 10px; flex-shrink: 0; }
+
+/* Action buttons */
+.btn-action {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: none; border-radius: var(--rm);
+  padding: 9px 18px; font-family: 'DM Sans', sans-serif;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: all .2s; white-space: nowrap;
+  text-transform: uppercase; letter-spacing: .3px;
+}
+.btn-preview { background: var(--navy); color: white; }
+.btn-preview:hover, .btn-preview.active { background: var(--navy-light); }
+.btn-download { background: var(--green); color: white; }
+.btn-download:hover { opacity: .88; }
+
+/* Scrollable left body */
+.lp-body { flex: 1; overflow-y: auto; padding: 22px; }
+
+/* Access banner */
+.ab {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px; border-radius: var(--rl); margin-bottom: 20px;
+  border-left: 4px solid;
+}
+.ab.oa { background: var(--green-light); border-color: var(--green); }
+.ab.nf { background: rgba(158,26,26,.06); border-color: var(--red); }
+.ab-icon { font-size: 20px; flex-shrink: 0; line-height: 1; margin-top: 1px; }
+.ab-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.ab-title.oa { color: var(--green); }
+.ab-title.nf { color: var(--red); }
+.ab-sub { font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+
+/* Section label — ruled line style */
+.slbl {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-faint);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+}
+.slbl::after { content: ''; flex: 1; height: 1px; background: var(--rule-light); }
+
+.ptitle {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; font-weight: 700; line-height: 1.3;
+  letter-spacing: -.3px; color: var(--navy); margin-bottom: 10px;
+}
+.pauth {
+  font-size: 13px; color: var(--orange); font-weight: 600;
+  margin-bottom: 10px; line-height: 1.5;
+  font-family: 'JetBrains Mono', monospace;
+}
+.pmeta { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+.kws { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.kw {
+  background: white; border: 1.5px solid var(--rule-light);
+  border-radius: var(--rf); padding: 4px 12px;
+  font-size: 11px; color: var(--ink-soft); font-weight: 600;
+  cursor: pointer; transition: all .15s; letter-spacing: .02em;
+}
+.kw:hover { background: var(--navy); color: white; border-color: var(--navy); }
+.divider { height: 1px; background: var(--rule-light); margin: 18px 0; }
+.abst { font-size: 14px; line-height: 1.9; color: var(--ink-soft); }
+.aname { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 3px; font-family: 'Playfair Display', serif; }
+.aaffil { font-size: 12px; color: var(--ink-faint); margin-bottom: 12px; font-style: italic; }
+.alinks { display: flex; flex-direction: column; gap: 7px; }
+.alink {
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 14px; border-radius: var(--rm);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  border: 1.5px solid var(--rule-light); background: white;
+  color: var(--ink-soft); transition: all .2s; text-decoration: none;
+}
+.alink:hover { border-color: var(--navy); color: var(--navy); background: var(--parch); }
+.alink.em { background: var(--navy); color: white; border-color: var(--navy); }
+.alink.em:hover { background: var(--orange); border-color: var(--orange); }
+
+/* Fixed bottom network bar */
+.lp-netbar {
+  background: white; border-top: 2px solid var(--rule);
+  padding: 14px 22px; flex-shrink: 0;
+}
+.net-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.net-label::after { content: ''; flex: 1; height: 1px; background: var(--rule-light); }
+.nbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nbtn {
+  background: var(--parch); border: 1.5px solid var(--rule-light);
+  border-radius: var(--rl); padding: 12px 14px;
+  cursor: pointer; transition: all .2s; text-align: left;
+}
+.nbtn:hover, .nbtn.active {
+  border-color: var(--navy); background: white;
+  box-shadow: var(--sh-sm);
+}
+.nbt { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 6px; font-family: 'Playfair Display', serif; }
+.nbc2 { display: flex; gap: 6px; }
+.nbc { display: inline-flex; align-items: center; border-radius: var(--rm); padding: 2px 9px; font-size: 11px; font-weight: 700; }
+.nbc.free { background: var(--green-light); color: var(--green); }
+.nbc.paid { background: var(--parch-darker, var(--parch-dark)); color: var(--ink-faint); }
+
+/* ── RIGHT PANE ── */
+.rpane {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; background: white;
+  border-left: 1px solid var(--rule);
+  min-width: 0; overflow: hidden;
+  clip-path: inset(0 0 0 100%);
+  transition: clip-path .35s cubic-bezier(.4,0,.2,1);
+}
+.rpane.open { clip-path: inset(0 0 0 0%); }
+
+/* Right pane toolbar */
+.rptb {
+  background: var(--parch-dark); border-bottom: 1px solid var(--rule);
+  padding: 11px 20px; display: flex; align-items: center;
+  gap: 10px; flex-shrink: 0;
+}
+.rpl { font-size: 13px; font-weight: 700; color: var(--navy); flex: 1; font-family: 'Playfair Display', serif; }
+.rpbtns { display: flex; gap: 6px; }
+.rpbtn {
+  background: white; border: 1.5px solid var(--rule); border-radius: var(--rm);
+  padding: 7px 13px; font-size: 11px; font-weight: 700;
+  color: var(--ink-soft); cursor: pointer; letter-spacing: .04em;
+  text-transform: uppercase; transition: all .2s; white-space: nowrap;
+}
+.rpbtn:hover { border-color: var(--navy); color: var(--navy); }
+.rpbtn.act { background: var(--navy); color: white; border-color: var(--navy); }
+.closebtn {
+  background: none; border: 1.5px solid var(--rule); border-radius: var(--rm);
+  width: 30px; height: 30px; display: flex; align-items: center;
+  justify-content: center; cursor: pointer; color: var(--ink-faint);
+  font-size: 16px; transition: all .15s; flex-shrink: 0;
+}
+.closebtn:hover { background: var(--parch); color: var(--navy); border-color: var(--navy); }
+
+.rpstate { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.rpstate.active { display: flex; }
+
+/* PDF pane */
+.pdfwrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.pdfbar {
+  background: white; border-bottom: 1px solid var(--rule-light);
+  padding: 9px 20px; display: flex; align-items: center;
+  gap: 10px; flex-shrink: 0;
+}
+embed.pdfframe { flex: 1; border: none; width: 100%; min-height: 300px; }
+.pdf-fb {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px; padding: 36px; text-align: center;
+}
+.pdf-fb-icon {
+  width: 64px; height: 64px; background: var(--parch);
+  border: 2px solid var(--rule); border-radius: var(--rl);
+  display: flex; align-items: center; justify-content: center;
+}
+.pdf-fb h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px; font-weight: 700; color: var(--navy);
+}
+.pdf-fb p { font-size: 13px; color: var(--ink-soft); max-width: 260px; line-height: 1.7; }
+.btn-ext {
+  background: var(--navy); color: white; border: none; border-radius: var(--rm);
+  padding: 11px 24px; font-size: 13px; font-weight: 700; cursor: pointer;
+  text-transform: uppercase; letter-spacing: .3px;
+}
+.btn-ext:hover { background: var(--orange); }
+
+
+/* ── Reference / Citation List View ─────────────────── */
+.netlist {
+  flex: 1; overflow-y: auto; padding: 20px 20px 32px;
+  background: var(--parch); display: flex; flex-direction: column; gap: 0;
+}
+.nl-section { margin-bottom: 28px; }
+.nl-head {
+  font-size: 10px; font-weight: 700; letter-spacing: .10em;
+  text-transform: uppercase; padding-bottom: 9px;
+  border-bottom: 1.5px solid var(--rule-light); margin-bottom: 10px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nl-head.free  { color: var(--green); border-bottom-color: rgba(26,92,56,.2); }
+.nl-head.paid  { color: var(--red);   border-bottom-color: rgba(158,26,26,.18); }
+.nl-head.other { color: var(--ink-faint); }
+.nl-count {
+  font-size: 10px; font-weight: 600; padding: 1px 7px;
+  border-radius: var(--rf); letter-spacing: 0;
+}
+.nl-head.free  .nl-count { background: var(--green-light); color: var(--green); }
+.nl-head.paid  .nl-count { background: rgba(158,26,26,.08); color: var(--red); }
+.nl-head.other .nl-count { background: var(--parch-dark); color: var(--ink-faint); }
+.nl-card {
+  background: white; border: 1px solid var(--rule-light);
+  border-radius: var(--rl); padding: 12px 14px; margin-bottom: 8px;
+  transition: border-color .18s, box-shadow .18s;
+}
+.nl-card:hover { border-color: var(--navy); box-shadow: var(--sh-sm); }
+.nl-title {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 600; color: var(--ink);
+  line-height: 1.45; margin-bottom: 5px;
+}
+.nl-title.clickable {
+  color: var(--navy); cursor: pointer;
+}
+.nl-title.clickable:hover { text-decoration: underline; text-decoration-color: var(--orange); }
+.nl-meta { font-size: 11px; color: var(--ink-faint); margin-bottom: 8px; line-height: 1.5; }
+.nl-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nl-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 9px;
+  border-radius: var(--rf); letter-spacing: .04em; flex-shrink: 0;
+}
+.nl-badge.free  { background: var(--green-light); color: var(--green); }
+.nl-badge.paid  { background: rgba(158,26,26,.08); color: var(--red); }
+.nl-badge.nodoi { background: var(--parch-dark); color: var(--ink-faint); }
+.nl-pdf-btn {
+  margin-left: auto; font-size: 11px; font-weight: 600;
+  background: var(--green); color: white; border: none;
+  border-radius: var(--rm); padding: 5px 11px; cursor: pointer;
+  transition: background .15s; flex-shrink: 0;
+}
+.nl-pdf-btn:hover { background: #156630; }
+.nl-view-btn {
+  background: var(--navy); color: white; border: none;
+  border-radius: var(--rm); padding: 6px 12px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  cursor: pointer; float: right; transition: background .2s;
+  letter-spacing: .04em;
+}
+.nl-view-btn:hover { background: var(--orange); }
+.nl-search-btn {
+  background: var(--parch-dark); border: 1.5px solid var(--rule);
+  border-radius: var(--rm); padding: 5px 12px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  color: var(--ink-soft); transition: all .2s; letter-spacing: .03em;
+}
+.nl-search-btn:hover { border-color: var(--navy); color: var(--navy); background: white; }
+.nl-search-drop {
+  position: absolute; top: calc(100% + 4px); left: 0;
+  background: white; border: 1.5px solid var(--rule);
+  border-radius: var(--rl); box-shadow: var(--sh-md);
+  z-index: 100; min-width: 180px; overflow: hidden;
+}
+.nl-search-opt {
+  display: block; padding: 9px 14px; font-size: 12px; font-weight: 500;
+  color: var(--ink-soft); cursor: pointer; transition: background .15s;
+  border-bottom: 1px solid var(--rule-light); text-decoration: none;
+}
+.nl-search-opt:last-child { border-bottom: none; }
+.nl-search-opt:hover { background: var(--parch); color: var(--navy); }
+.nl-empty {
+  font-size: 12px; color: var(--ink-faint); padding: 6px 2px;
+  font-style: italic;
+}
+
+.find-free-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: white;
+  border: 1.5px solid var(--rule);
+  border-radius: var(--rl);
+  padding: 10px 14px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  transition: all .2s;
+  min-width: 52px;
+}
+.find-free-btn:hover {
+  border-color: var(--navy);
+  color: var(--navy);
+  background: var(--parch);
+  transform: translateY(-2px);
+  box-shadow: var(--sh-sm);
+}
+.find-free-btn span {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+<div class="lbar" id="lbar"></div>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <button class="logo" onclick="goHome()">
+    <!-- Logo: clean page/document icon -->
+    <svg width="26" height="32" viewBox="0 0 26 32" fill="none">
+      <path d="M2 2H16L24 10V30C24 30.6 23.6 31 23 31H3C2.4 31 2 30.6 2 30V2Z"
+            fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.82)" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M16 2V10H24" stroke="rgba(255,255,255,0.82)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M6 16h12M6 20h12M6 24h8" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" stroke-linecap="round"/>
+    </svg>
+    <div class="logo-wordmark">
+      <div class="logo-name">
+        <span class="logo-papr">Papr</span><span class="logo-door">Door</span>
+      </div>
+    </div>
+    <div class="logo-divider"></div>
+    <div class="logo-tag">Open Research Access</div>
+  </button>
+  <nav>
+    <a href="#">About</a>
+    <a href="#">API</a>
+    <a href="https://github.com" target="_blank" class="nav-github">GitHub ↗</a>
+  </nav>
+</header>
+
+<!-- ══ PAGE 1 — HOME ══ -->
+<div class="page active" id="pg-home">
+  <div class="hero">
+
+    <div class="hero-inner">
+      <div class="eyebrow-wrap">
+        <div class="eyebrow-line"></div>
+        <div class="eyebrow">Free · Legal · Open Source · India First</div>
+        <div class="eyebrow-line"></div>
+      </div>
+
+      <h1 class="hero-title">
+        The <span class="italic-word">door</span> to<br/>every paper
+        <span class="small-line">Because knowledge should have no walls</span>
+      </h1>
+
+      <div class="hero-rule"></div>
+
+      <p class="hero-sub">
+        Search 200M+ research papers. Find free legal access, excavate references,
+        track citations, discover Indian theses — one search box, free forever.
+      </p>
+
+      <div class="sbox">
+        <div class="mtabs">
+          <div class="mtab active" id="tab-doi" onclick="switchMode('doi')">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+              <path d="M4 5h6M4 7.5h6M4 10h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            </svg>
+            DOI or Title
+          </div>
+          <div class="mtab" id="tab-adv" onclick="switchMode('adv')">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/>
+              <path d="M4.5 7h5M7 4.5v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            </svg>
+            Topic / Keywords
+          </div>
+        </div>
+
+        <div class="mpanel active" id="panel-doi">
+          <div class="irow">
+            <input class="si mono" id="doi-input"
+              placeholder="Paste DOI (10.1038/…) or full paper title…"
+              onkeydown="if(event.key==='Enter') searchDirect()"/>
+            <button class="bp" onclick="searchDirect()">Search</button>
+          </div>
+          <div class="hint">Exact DOI or title → goes directly to paper view</div>
+        </div>
+
+        <div class="mpanel" id="panel-adv">
+          <div class="ag">
+            <div><label class="fl">Topic / Keywords</label>
+              <input class="si sm" id="kw-input" placeholder="e.g. bird acoustic monitoring" onkeydown="if(event.key==='Enter') searchKeywords()"/></div>
+            <div><label class="fl">Author (optional)</label>
+              <input class="si sm" id="auth-input" placeholder="e.g. Kahl S."/></div>
+          </div>
+          <div class="ag3">
+            <div><label class="fl">Year from</label><input class="si sm" id="yr-from" type="number" placeholder="2018"/></div>
+            <div><label class="fl">Year to</label><input class="si sm" id="yr-to" type="number" placeholder="2026"/></div>
+            <div><label class="fl">Access</label>
+              <select class="si sm" id="access-sel"><option>All papers</option><option>Open access only</option><option>Paywalled only</option></select></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:8px">
+            <button class="bp" onclick="searchKeywords()">Search Papers</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats strip — journal masthead -->
+      <div class="stats" style="margin-top:28px">
+        <div class="stat-item"><span class="sn">200M+</span><span class="sl">Papers indexed</span></div>
+        <div class="stat-item"><span class="sn">~50%</span><span class="sl">Open access</span></div>
+        <div class="stat-item"><span class="sn">7</span><span class="sl">Free APIs</span></div>
+        <div class="stat-item"><span class="sn">600K+</span><span class="sl">Indian theses</span></div>
+        <div class="stat-item"><span class="sn">0₹</span><span class="sl">Cost ever</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE 2.1 — RESULTS ══ -->
+<div class="page" id="pg-results">
+  <div class="rh">
+    <button class="bbtn" onclick="goHome()">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M8 2L3 6l5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      New Search
+    </button>
+    <div class="rq">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="opacity:.4;flex-shrink:0">
+        <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <input id="rqt" type="text" placeholder="Search papers…"
+             onkeydown="if(event.key==='Enter') reSearch()"/>
+      <button class="rq-go" onclick="reSearch()">Search</button>
+    </div>
+    <div class="rm" id="rmt"></div>
+  </div>
+  <div class="rb">
+    <div class="rtr">
+      <div class="rt" id="rpt">Search Results</div>
+      <div class="fb">
+        <div class="fbtn active" onclick="filterR('all',this)">All</div>
+        <div class="fbtn" onclick="filterR('oa',this)">Open Access</div>
+        <div class="fbtn" onclick="filterR('paid',this)">Paywalled</div>
+      </div>
+    </div>
+    <div id="rl"></div>
+    <div class="pgbar" id="pgbar" style="display:none">
+      <button class="pg-btn" id="pg-prev" onclick="goPage(currentPage-1)">← Prev</button>
+      <span class="pg-info" id="pg-info">Page 1</span>
+      <button class="pg-btn" id="pg-next" onclick="goPage(currentPage+1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE 2 — PAPER VIEW ══ -->
+<div class="page" id="pg-paper">
+  <div class="pnav" style="gap:12px">
+    <button class="bbtn" id="nav-back" style="display:none;flex-shrink:0" onclick="goBack()">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M8 2L3 6l5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Back
+    </button>
+    <div class="crumb" id="crumb"></div>
+  </div>
+
+  <div class="split">
+    <!-- LEFT PANE -->
+    <div class="lpane" id="lpane">
+      <div class="lp-topbar">
+        <div class="lp-actions" id="lp-actions"></div>
+      </div>
+      <div class="lp-body" id="lp-body"></div>
+      <div class="lp-netbar">
+        <div class="net-label">Explore Networks</div>
+        <div class="nbtns" id="nbtns"></div>
+      </div>
+    </div>
+
+    <!-- DRAGGABLE DIVIDER -->
+    <div class="split-divider" id="split-divider"></div>
+
+    <!-- RIGHT PANE -->
+    <div class="rpane" id="rpane">
+      <div class="rptb">
+        <div class="rpl" id="rpl">Paper Preview</div>
+        <div class="rpbtns">
+          <button class="rpbtn act" id="rbtn-preview" onclick="switchRP('preview')">Preview</button>
+          <button class="rpbtn" id="rbtn-refs" onclick="switchRP('refs')">References</button>
+          <button class="rpbtn" id="rbtn-cites" onclick="switchRP('cites')">Citations</button>
+        </div>
+        <button class="closebtn" onclick="closeRP()">×</button>
+      </div>
+      <div class="rpstate active" id="rps-preview"><div class="pdfwrap" id="pdfwrap"></div></div>
+      <div class="rpstate" id="rps-refs">
+        <div class="nl-filter-bar">
+          <button class="nl-ftab active" data-filter="all"   onclick="filterList('refs','all')">All Papers</button>
+          <button class="nl-ftab"        data-filter="free"  onclick="filterList('refs','free')">● Free Access</button>
+          <button class="nl-ftab"        data-filter="paid"  onclick="filterList('refs','paid')">● Paywalled</button>
+          <button class="nl-ftab"        data-filter="other" onclick="filterList('refs','other')">Others</button>
+          <select class="nl-sort" id="sort-refs" onchange="sortList('refs',this.value)">
+            <option value="year-desc">Year ↓ Newest first</option>
+            <option value="year-asc">Year ↑ Oldest first</option>
+            <option value="az">Title A → Z</option>
+          </select>
+        </div>
+        <div class="netlist" id="nl-refs"></div>
+      </div>
+      <div class="rpstate" id="rps-cites">
+        <div class="nl-filter-bar">
+          <button class="nl-ftab active" data-filter="all"   onclick="filterList('cites','all')">All Papers</button>
+          <button class="nl-ftab"        data-filter="free"  onclick="filterList('cites','free')">● Free Access</button>
+          <button class="nl-ftab"        data-filter="paid"  onclick="filterList('cites','paid')">● Paywalled</button>
+          <button class="nl-ftab"        data-filter="other" onclick="filterList('cites','other')">Others</button>
+          <select class="nl-sort" id="sort-cites" onchange="sortList('cites',this.value)">
+            <option value="year-desc">Year ↓ Newest first</option>
+            <option value="year-asc">Year ↑ Oldest first</option>
+            <option value="az">Title A → Z</option>
+          </select>
+        </div>
+        <div class="netlist" id="nl-cites"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function reconstructAbstract(inv) {
+  if (!inv) return '';
+  const words = [];
+  for (const [word, positions] of Object.entries(inv)) {
+    for (const pos of positions) words[pos] = word;
+  }
+  return words.filter(Boolean).join(' ');
+}
+
+let cp=null,fr=false,ar=[];
+let lastSearch={}, currentPage=1, totalResults=0;
+let nlSort={ refs:'year-desc', cites:'year-desc' };
+let navHistory=[], currentRP='';
+const $=id=>document.getElementById(id);
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2400)}
+function loading(on){$('lbar').style.display=on?'block':'none'}
+function trunc(s,n){return s&&s.length>n?s.slice(0,n)+'…':s||''}
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));const t=$(id);if(t)t.classList.add('active')}
+function goHome(){showPage('pg-home');fr=false;navHistory=[];currentRP='';}
+function goResults(){if(fr)showPage('pg-results')}
+
+function updateNav() {
+  const back = $('nav-back');
+  const crumb = $('crumb');
+  if (!back || !crumb) return;
+
+  // Back button visibility
+  back.style.display = navHistory.length > 0 ? 'flex' : 'none';
+
+  // Build breadcrumb
+  const sep = `<span style="color:var(--rule);margin:0 1px">›</span>`;
+  const t = s => trunc(s || '', 35);
+  let html = `<a onclick="goHome()">PaprDoor</a>`;
+
+  if (navHistory.length === 0) {
+    // First paper: PaprDoor › Paper title
+    if (cp) html += sep + `<span id="bc-p">${t(cp.title)}</span>`;
+  } else if (navHistory.length === 1) {
+    // One level deep: PaprDoor › Paper A › refs/cites › Paper B
+    const prev = navHistory[0];
+    const label = prev.networkType === 'cites' ? 'Citations' :
+                  prev.networkType === 'refs'  ? 'References' : '';
+    html += sep + `<a onclick="goBack()">${t(prev.paper.title)}</a>`;
+    if (label) html += sep + `<span style="color:var(--ink-faint)">${label}</span>`;
+    if (cp) html += sep + `<span id="bc-p">${t(cp.title)}</span>`;
+  } else {
+    // Deeper: PaprDoor › … › Paper A › refs/cites › Paper B
+    const prev = navHistory[navHistory.length - 1];
+    const label = prev.networkType === 'cites' ? 'Citations' :
+                  prev.networkType === 'refs'  ? 'References' : '';
+    html += sep + `<span style="color:var(--ink-faint)">…</span>`;
+    html += sep + `<a onclick="goBack()">${t(prev.paper.title)}</a>`;
+    if (label) html += sep + `<span style="color:var(--ink-faint)">${label}</span>`;
+    if (cp) html += sep + `<span id="bc-p">${t(cp.title)}</span>`;
+  }
+
+  crumb.innerHTML = html;
+}
+
+function goBack() {
+  if (!navHistory.length) return;
+  const { paper, networkType } = navHistory.pop();
+  loadPaper(paper, true);          // skipHistory=true — don't re-push
+  if (networkType === 'refs' || networkType === 'cites' || networkType === 'preview') {
+    openRP(networkType);
+  }
+}
+
+async function loadFromList(doi, pdfUrl, networkType) {
+  if (!doi) { toast('No DOI available for this paper'); return; }
+  loading(true);
+  try {
+    const paper = await fetchDOI(doi);
+    loadPaper(paper);              // normal push — records currentRP at time of click
+  } catch(e) {
+    console.error(e);
+    toast('Could not load paper. Please try again.');
+  } finally {
+    loading(false);
+  }
+}
+function toggleSearchDrop(btn) {
+  const drop = btn.nextElementSibling;
+  const isOpen = drop.style.display === 'block';
+  document.querySelectorAll('.nl-search-drop').forEach(d => d.style.display = 'none');
+  drop.style.display = isOpen ? 'none' : 'block';
+}
+
+function openSearch(engine, el) {
+  const wrap = el.closest('.nl-search-wrap');
+  const btn  = wrap.querySelector('.nl-search-btn');
+  const title   = decodeURIComponent(btn.dataset.title);
+  const authors = decodeURIComponent(btn.dataset.authors);
+  const year    = btn.dataset.year;
+  const q = encodeURIComponent([title, authors, year].filter(Boolean).join(' '));
+  const urls = {
+    scholar:    'https://scholar.google.com/scholar?q=' + q,
+    semantic:   'https://www.semanticscholar.org/search?q=' + q,
+    base:       'https://www.base-search.net/Search/Results?lookfor=' + q,
+    shodhganga: 'https://shodhganga.inflibnet.ac.in/simple-search?query=' + q
+  };
+  window.open(urls[engine], '_blank');
+  el.closest('.nl-search-drop').style.display = 'none';
+}
+
+function switchMode(m){['doi','adv'].forEach(x=>{$('tab-'+x).classList.toggle('active',x===m);$('panel-'+x).classList.toggle('active',x===m)})}
+function getBestPdfUrl(unpaywallData) {
+  if (!unpaywallData || !unpaywallData.is_oa) return null;
+  const locations = unpaywallData.oa_locations || [];
+
+  // Priority 1: direct PDF from known embeddable repositories
+  const directPdf = locations.find(loc =>
+    loc.url_for_pdf && (
+      loc.url_for_pdf.includes('ncbi.nlm.nih.gov') ||
+      loc.url_for_pdf.includes('arxiv.org') ||
+      loc.url_for_pdf.includes('biorxiv.org') ||
+      loc.url_for_pdf.includes('medrxiv.org') ||
+      loc.url_for_pdf.includes('europepmc.org') ||
+      loc.url_for_pdf.includes('zenodo.org') ||
+      loc.url_for_pdf.endsWith('.pdf')
+    )
+  );
+  if (directPdf) return directPdf.url_for_pdf;
+
+  // Priority 2: any URL ending in .pdf
+  const anyPdf = locations.find(loc =>
+    loc.url_for_pdf && loc.url_for_pdf.endsWith('.pdf')
+  );
+  if (anyPdf) return anyPdf.url_for_pdf;
+
+  // Priority 3: any url_for_pdf present
+  const anyLocation = locations.find(loc => loc.url_for_pdf);
+  if (anyLocation) return anyLocation.url_for_pdf;
+
+  // Priority 4: best_oa_location fallback
+  return unpaywallData.best_oa_location?.url_for_pdf || null;
+}
+
+async function fetchDOI(doi) {
+  try {
+    const [crRes, oaRes, refRawRes, citRawRes, ocRes, uwRes] = await Promise.allSettled([
+      fetch(`https://api.crossref.org/works/${doi}`, {
+        headers: { 'User-Agent': 'PaprDoor/1.0 (paprdoor.org; mailto:hello@paprdoor.org)' }
+      }),
+      fetch(`https://api.openalex.org/works/doi:${doi}`),
+      fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${doi}?fields=references.title,references.authors,references.year,references.externalIds,references.openAccessPdf,references.journal`),
+      fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${doi}?fields=citations.title,citations.authors,citations.year,citations.externalIds,citations.openAccessPdf,citations.journal`),
+      fetch(`https://opencitations.net/index/api/v2/citations/${encodeURIComponent(doi)}`),
+      fetch(`https://api.unpaywall.org/v2/${doi}?email=hello@paprdoor.org`)
+    ]);
+
+    if (crRes.status !== 'fulfilled' || !crRes.value.ok) throw new Error('CrossRef fetch failed');
+    const crData = await crRes.value.json();
+    const m = crData.message;
+
+    // OA status: OpenAlex first, Unpaywall as fallback
+    // OpenAlex may not index very recent papers; Unpaywall is authoritative for publisher OA
+    let isOA = false;
+    let oaUrl = null;
+    let oaUrlFromOpenAlex = null;
+    if (oaRes.status === 'fulfilled' && oaRes.value.ok) {
+      const oaData = await oaRes.value.json();
+      isOA = !!(oaData.open_access?.is_oa);
+      oaUrlFromOpenAlex = oaData.open_access?.oa_url || null;
+    }
+    if (uwRes.status === 'fulfilled' && uwRes.value.ok) {
+      const uwData = await uwRes.value.json();
+      if (uwData.is_oa) {
+        isOA = true;
+        oaUrl = getBestPdfUrl(uwData); // prioritises PMC/arXiv/bioRxiv direct PDFs over landing pages
+      }
+    }
+    oaUrl = oaUrl || oaUrlFromOpenAlex; // fall back to OpenAlex URL
+
+    // Semantic Scholar mapper
+    const mapSS = (items) => (items || []).map((item, i) => ({
+      id: item.externalIds?.DOI || `ss_${i}`,
+      doi: item.externalIds?.DOI || null,
+      title: item.title || "Untitled",
+      authors: (item.authors || []).map(a => a.name).join(", "),
+      year: item.year || null,
+      free: !!item.openAccessPdf?.url,
+      journal: item.journal?.name || ""
+    }));
+
+    // CrossRef reference fallback mapper
+    const mapCR = (items) => (items || []).map((item, i) => ({
+      id: item.DOI || item.key || `cr_${i}`,
+      doi: item.DOI || null,
+      title: item['article-title'] || item['volume-title'] || item.unstructured?.substring(0, 100) || 'Untitled',
+      authors: item.author || '',
+      year: item.year ? parseInt(item.year) : null,
+      free: false,
+      journal: item['journal-title'] || ''
+    })).filter(r => r.title !== 'Untitled');
+
+    // OpenCitations fallback mapper (only citing DOIs — use DOI as title)
+    const mapOC = (items) => (items || []).map((item, i) => ({
+      id: item.citing || `oc_${i}`,
+      doi: item.citing || null,
+      title: item.citing || 'Citing paper',
+      authors: '',
+      year: item.creation ? parseInt(item.creation.split('-')[0]) : null,
+      free: false,
+      journal: ''
+    })).filter(r => r.doi);
+
+    const refsData = refRawRes.status === "fulfilled" && refRawRes.value.ok ? await refRawRes.value.json() : { references: [] };
+    const citesData = citRawRes.status === "fulfilled" && citRawRes.value.ok ? await citRawRes.value.json() : { citations: [] };
+
+    let refs = mapSS(refsData.references || []);
+    let cites = mapSS(citesData.citations || []);
+
+    // Fallback: CrossRef reference list (already in the CrossRef response — no extra call)
+    if (refs.length === 0 && m.reference && m.reference.length) {
+      refs = mapCR(m.reference);
+    }
+
+    // Fallback: OpenCitations for citations
+    if (cites.length === 0 && ocRes.status === 'fulfilled' && ocRes.value.ok) {
+      const ocData = await ocRes.value.json();
+      cites = mapOC(Array.isArray(ocData) ? ocData : []);
+    }
+
+    // Batch OA check via OpenAlex for all refs with DOIs
+    // S2 openAccessPdf is incomplete; CrossRef fallback marks all as paid — OpenAlex is authoritative
+    const refsWithDoi = refs.filter(r => r.doi).slice(0, 40);
+    if (refsWithDoi.length > 0) {
+      try {
+        const doiFilter = refsWithDoi.map(r => r.doi).join('|');
+        const oaResp = await fetch(
+          `https://api.openalex.org/works?filter=doi:${doiFilter}&select=doi,open_access&per_page=50&mailto=hello@paprdoor.org`
+        );
+        if (oaResp.ok) {
+          const oaJson = await oaResp.json();
+          const oaMap = {};
+          (oaJson.results || []).forEach(w => {
+            const d = (w.doi || '').replace('https://doi.org/', '').toLowerCase();
+            if (d) oaMap[d] = !!(w.open_access?.is_oa);
+          });
+          refs = refs.map(r => {
+            if (!r.doi) return r;
+            const key = r.doi.toLowerCase();
+            return key in oaMap ? { ...r, free: oaMap[key] } : r;
+          });
+        }
+      } catch (e) { /* OA check failed — keep existing status */ }
+    }
+
+    return {
+      doi: m.DOI,
+      title: m.title[0],
+      authors: m.author.map(a => `${a.given || ""} ${a.family || ""}`).join(", "),
+      journal: m["container-title"] && m["container-title"].length ? m["container-title"][0] : "Unknown Journal",
+      year: m.published["date-parts"][0][0],
+      oa: isOA,
+      pdf: oaUrl,
+      abstract: m.abstract ? m.abstract.replace(/<[^>]*>/g, "").replace(/^Abstract/i, "").trim() : "No abstract available.",
+      authorName: `${m.author[0].given || ''} ${m.author[0].family || ''}`.trim(),
+      orcid: m.author[0].ORCID || null,
+      affil: m.author[0].affiliation && m.author[0].affiliation.length ? m.author[0].affiliation[0].name : "",
+      refs,
+      cites
+    };
+  } catch (err) {
+    toast('Error fetching paper. Please try again.');
+    throw err;
+  }
+}
+
+async function searchDirect(doi) {
+  const q = doi || $("doi-input").value.trim();
+  if (!q) return;
+  loading(true);
+  try {
+    const paper = await fetchDOI(q);
+    fr = false;
+    loadPaper(paper);
+  } catch (e) {
+    console.error(e);
+  } finally {
+    loading(false);
+  }
+}
+async function searchKeywords(page, params) {
+  page = page || 1;
+  const kw     = (params?.kw)     || $('kw-input')?.value.trim()   || '';
+  const auth   = (params?.auth)   || ($('auth-input')?.value   || '').trim();
+  const yrFrom = (params?.yrFrom) || ($('yr-from')?.value      || '').trim();
+  const yrTo   = (params?.yrTo)   || ($('yr-to')?.value        || '').trim();
+  const access = (params?.access) || $('access-sel')?.value    || '';
+  if (!kw) return;
+
+  // Save for pagination re-use
+  lastSearch = { kw, auth, yrFrom, yrTo, access };
+  currentPage = page;
+
+  loading(true);
+  try {
+    const filters = [];
+    if (auth)           filters.push(`author.search:${encodeURIComponent(auth)}`);
+    if (yrFrom && yrTo) filters.push(`publication_year:${yrFrom}-${yrTo}`);
+    else if (yrFrom)    filters.push(`publication_year:>${parseInt(yrFrom) - 1}`);
+    else if (yrTo)      filters.push(`publication_year:<${parseInt(yrTo) + 1}`);
+    if (access === 'Open access only') filters.push('is_oa:true');
+    else if (access === 'Paywalled only') filters.push('is_oa:false');
+
+    let url = `https://api.openalex.org/works?search=${encodeURIComponent(kw)}`
+            + `&per_page=20&page=${page}`
+            + `&select=doi,title,authorships,publication_year,open_access,abstract_inverted_index,primary_location`
+            + `&sort=cited_by_count:desc`
+            + `&mailto=hello@paprdoor.org`;
+    if (filters.length) url += `&filter=${filters.join(',')}`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('OpenAlex search failed');
+    const data = await res.json();
+
+    totalResults = data.meta?.count || 0;
+
+    const results = (data.results || []).map((w, i) => ({
+      id: w.id,
+      doi:      (w.doi || '').replace('https://doi.org/', '') || null,
+      title:    w.title || 'Untitled',
+      authors:  (w.authorships || []).slice(0, 4)
+                  .map(a => a.author?.display_name || '').filter(Boolean).join(', '),
+      abstract: reconstructAbstract(w.abstract_inverted_index) || 'No abstract available.',
+      year:     w.publication_year || '',
+      journal:  w.primary_location?.source?.display_name || '',
+      free:     !!(w.open_access?.is_oa),
+      pdf:      w.open_access?.oa_url || null
+    }));
+
+    if (results.length === 0 && page === 1) {
+      toast('No papers found. Try different keywords.');
+      return;
+    }
+    renderResults(kw, results, page, totalResults);
+  } catch (e) {
+    console.error(e);
+    toast('Search failed. Check your connection and try again.');
+  } finally {
+    loading(false);
+  }
+}
+
+function reSearch() {
+  const q = ($('rqt')?.value || '').trim();
+  if (!q) return;
+  lastSearch = { ...lastSearch, kw: q };
+  searchKeywords(1, lastSearch);
+}
+
+function goPage(p) {
+  const maxPage = Math.ceil(totalResults / 20) || 1;
+  if (p < 1 || p > maxPage) return;
+  searchKeywords(p, lastSearch);
+  const rb = document.querySelector('.rb');
+  if (rb) rb.scrollTop = 0;
+}
+function renderResults(q, res, page, total) {
+  ar = res; fr = true;
+  page = page || 1;
+  total = total || res.length;
+  const totalPages = Math.ceil(total / 20);
+  const f = res.filter(r => r.free).length;
+
+  // Populate editable search bar with current query
+  const rqt = $('rqt');
+  if (rqt) rqt.value = q;
+
+  $('rpt').textContent = 'Results for "' + trunc(q, 40) + '"';
+  $('rmt').textContent = total > res.length
+    ? `${total.toLocaleString()} total · ${f} free on this page`
+    : `${res.length} papers · ${f} free`;
+
+  document.querySelectorAll('.fbtn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  renderCards(res);
+
+  // Pagination bar
+  const pgbar = $('pgbar');
+  if (pgbar) {
+    if (total > 20) {
+      pgbar.style.display = 'flex';
+      $('pg-prev').disabled = page <= 1;
+      $('pg-next').disabled = page >= totalPages;
+      $('pg-info').textContent = `Page ${page} of ${totalPages.toLocaleString()}`;
+    } else {
+      pgbar.style.display = 'none';
+    }
+  }
+
+  showPage('pg-results');
+}
+function renderCards(list) {
+  $("rl").innerHTML = list.map(p => `<div class="rc" onclick="searchDirect('${p.doi}')"><div class="rdot ${p.free ? "oa" : "pd"}"></div><div class="rbdy"><div class="rtl">${p.title}</div><div class="rau">${p.authors}</div><div class="rab">${p.abstract}</div><div class="rmr"><span class="bdg ${p.free ? "oa" : "pd"}">${p.free ? "✓ Open Access" : "⊘ Paywalled"}</span><span class="bdg yr">${p.year}</span><span class="bdg jn">${p.journal}</span><span class="bdg doi">${p.doi || ""}</span></div></div><div class="ract"><button class="bvw">View →</button>${p.free ? `<button class="bdl" onclick="event.stopPropagation();window.open('${p.pdf}','_blank')">PDF ↓</button>` : ""}</div></div>`).join("");
+}
+function filterR(type, el) {
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const accessMap = { all: 'All papers', oa: 'Open access only', paid: 'Paywalled only' };
+  lastSearch = { ...lastSearch, access: accessMap[type] };
+  searchKeywords(1, lastSearch);
+}
+function filterList(type, filter) {
+  document.querySelectorAll(`#rps-${type} .nl-ftab`).forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === filter);
+  });
+  const items = type === 'refs' ? (cp.refs || []) : (cp.cites || []);
+  renderList(type, items, filter, nlSort[type]);
+}
+
+function sortList(type, sort) {
+  nlSort[type] = sort;
+  // Read which filter is currently active
+  const activeBtn = document.querySelector(`#rps-${type} .nl-ftab.active`);
+  const filter = activeBtn ? activeBtn.dataset.filter : 'all';
+  const items  = type === 'refs' ? (cp.refs || []) : (cp.cites || []);
+  renderList(type, items, filter, sort);
+}
+
+function renderList(type, items, filter, sort) {
+  filter = filter || 'all';
+  sort   = sort   || nlSort[type] || 'year-desc';
+  const container = $('nl-' + type);
+  if (!container) return;
+
+  // Sort comparator
+  const comparator =
+    sort === 'year-asc'  ? (a, b) => (a.year || 0) - (b.year || 0) :
+    sort === 'az'        ? (a, b) => (a.title || '').localeCompare(b.title || '') :
+                           (a, b) => (b.year || 0) - (a.year || 0);  // year-desc default
+
+  const sorted = [...items].sort(comparator);
+
+  // Partition into three groups (after sorting so order is preserved within each)
+  const free  = sorted.filter(p => p.free && (p.doi || p.pdf));
+  const paid  = sorted.filter(p => !p.free && p.doi);
+  const other = sorted.filter(p => !p.doi);
+
+  const esc = s => (s || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
+
+  const makeCard = (p, section) => {
+    const meta = [p.authors, p.year, p.journal].filter(Boolean).join(' · ');
+
+    const badge =
+      section === 'free'  ? '<span class="nl-badge free">✓ Free</span>' :
+      section === 'paid'  ? '<span class="nl-badge paid">⊘ Paywalled</span>' :
+                            '<span class="nl-badge nodoi">No DOI</span>';
+
+    const pdfBtn = (section === 'free' && p.pdf)
+      ? `<button class="nl-pdf-btn" onclick="window.open('${esc(p.pdf)}','_blank')">Open PDF ↗</button>`
+      : '';
+
+    // "View Paper →" button — only for papers with a DOI
+    const viewBtn = p.doi
+      ? `<button class="nl-view-btn" onclick="loadFromList('${esc(p.doi)}','${esc(p.pdf||'')}','${type}')">View Paper →</button>`
+      : '';
+
+    // Search dropdown — only for Other Sources (no DOI)
+    const searchWrap = (section === 'other')
+      ? `<div class="nl-search-wrap" style="position:relative;margin-top:8px">
+          <button class="nl-search-btn"
+            onclick="toggleSearchDrop(this)"
+            data-title="${encodeURIComponent(p.title||'')}"
+            data-authors="${encodeURIComponent(p.authors||'')}"
+            data-year="${p.year||''}">
+            🔍 Search ▾
+          </button>
+          <div class="nl-search-drop" style="display:none">
+            <a class="nl-search-opt" onclick="openSearch('scholar',this)">Google Scholar</a>
+            <a class="nl-search-opt" onclick="openSearch('semantic',this)">Semantic Scholar</a>
+            <a class="nl-search-opt" onclick="openSearch('base',this)">BASE</a>
+            <a class="nl-search-opt" onclick="openSearch('shodhganga',this)">🇮🇳 Shodhganga</a>
+          </div>
+        </div>`
+      : '';
+
+    const checkAttr = section === 'other'
+      ? `data-check-title="${encodeURIComponent(p.title||'')}"` +
+        ` data-check-authors="${encodeURIComponent(p.authors||'')}"` +
+        ` data-check-year="${p.year||''}"` +
+        ` data-check-journal="${encodeURIComponent(p.journal||'')}"` +
+        ` data-check-abstract="${encodeURIComponent(p.abstract||'')}"`
+      : '';
+
+    return `<div class="nl-card" ${checkAttr}>
+      ${viewBtn}
+      <div class="nl-title">${p.title || 'Untitled'}</div>
+      ${meta ? `<div class="nl-meta">${meta}</div>` : ''}
+      <div class="nl-footer">${badge}${pdfBtn}</div>
+      ${searchWrap}
+    </div>`;
+  };
+
+  const section = (cls, label, list, emptyMsg) => `
+    <div class="nl-section">
+      <div class="nl-head ${cls}">
+        <span>${label}</span>
+        <span class="nl-count">${list.length}</span>
+      </div>
+      ${list.length ? list.map(p => makeCard(p, cls)).join('') : `<div class="nl-empty">${emptyMsg}</div>`}
+    </div>`;
+
+  let html = '';
+  if (filter === 'free') {
+    html += section('free',  'Free Access',   free,  'No free papers found');
+  } else if (filter === 'paid') {
+    html += section('paid',  'Paywalled',     paid,  'No paywalled papers found');
+  } else if (filter === 'other') {
+    html += section('other', 'Other Sources', other, 'No other sources found');
+  } else {
+    html += section('free',  'Free Access',   free,  'No free papers found');
+    html += section('paid',  'Paywalled',     paid,  'No paywalled papers found');
+    if (other.length) html += section('other', 'Other Sources', other, '');
+  }
+
+  container.innerHTML = html;
+
+  // Check each Other Sources card against OpenAlex for a free version
+  container.querySelectorAll('.nl-card[data-check-title]').forEach(card => {
+    checkOtherSources(card, decodeURIComponent(card.dataset.checkTitle));
+  });
+}
+
+function openPreviewPane(pdfUrl, title, item) {
+  item = item || {};
+  const previewPaper = {
+    title:    item.title    || title,
+    authors:  item.authors  || 'Unknown authors',
+    year:     item.year     || '',
+    journal:  item.journal  || 'Unknown source',
+    doi:      item.doi      || '',
+    abstract: item.abstract || 'Abstract not available for this source.',
+    keywords: [],
+    oa:       true,
+    pdf:      pdfUrl,
+    affil:    '',
+    refs:     cp ? (cp.refs  || []) : [],
+    cites:    cp ? (cp.cites || []) : []
+  };
+  loadPaper(previewPaper);
+  openRP('preview');
+}
+
+async function checkOtherSources(cardEl, title) {
+  if (!title) return;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    const url = `https://api.openalex.org/works?search=${encodeURIComponent(title)}`
+              + `&select=open_access&per_page=1&mailto=hello@paprdoor.org`;
+    const res = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) return;
+    const data = await res.json();
+    const work = data.results?.[0];
+    if (!work?.open_access?.is_oa || !work.open_access.oa_url) return;
+    const pdfUrl = work.open_access.oa_url;
+    // Build item from the card's data attributes
+    const d = cardEl.dataset;
+    const item = {
+      title:    decodeURIComponent(d.checkTitle   || ''),
+      authors:  decodeURIComponent(d.checkAuthors || ''),
+      year:     d.checkYear    || '',
+      journal:  decodeURIComponent(d.checkJournal  || ''),
+      abstract: decodeURIComponent(d.checkAbstract || '')
+    };
+    // Upgrade the No DOI badge to a Free badge
+    const footer = cardEl.querySelector('.nl-footer');
+    if (!footer) return;
+    const badge = footer.querySelector('.nl-badge.nodoi');
+    if (badge) { badge.className = 'nl-badge free'; badge.textContent = '✓ Free (OpenAlex)'; }
+    // Add Open PDF button — opens preview pane with full left-pane update
+    const btn = document.createElement('button');
+    btn.className = 'nl-pdf-btn';
+    btn.textContent = 'Open PDF ↗';
+    btn.onclick = () => openPreviewPane(pdfUrl, title, item);
+    footer.appendChild(btn);
+  } catch(e) {
+    clearTimeout(timer);
+    // Silent fail — card unchanged
+  }
+}
+
+function loadPaper(paper, skipHistory) {
+  if (!skipHistory && cp) navHistory.push({ paper: cp, networkType: currentRP });
+  cp = paper;
+  renderLeft(paper);
+  showPage('pg-paper');
+  closeRP();
+  updateNav();
+}
+function renderLeft(p) {
+  const rf = p.refs.filter(r => r.free).length;
+  const cf = p.cites.filter(c => c.free).length;
+  $("lp-actions").innerHTML =
+    (p.oa ? `<button class="btn-action btn-download" onclick="window.open(cp.pdf,'_blank')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M5 8l3 3 3-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Download PDF</button>` : '')
+    + `<button class="btn-action btn-preview" id="pt-btn" onclick="openRP('preview')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="9" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 6h14" stroke="currentColor" stroke-width="1.2"/></svg>Preview</button>`;
+
+  // Build working author-connect links
+  const authorName  = p.authorName || p.authors.split(',')[0].trim();
+  const rgUrl       = 'https://www.researchgate.net/search/researcher?q=' + encodeURIComponent(authorName);
+  const gsUrl       = 'https://scholar.google.com/scholar?q=' + encodeURIComponent(authorName);
+  // Contact: ORCID profile if available, else a Google search for the author's contact
+  const contactUrl  = p.orcid
+    ? p.orcid
+    : 'https://www.google.com/search?q=' + encodeURIComponent(authorName + ' researcher contact email');
+  const contactLabel = p.orcid ? 'ORCID Profile' : 'Find Contact Info';
+
+  $("lp-body").innerHTML = `
+    <div class="ab ${p.oa ? 'oa' : 'nf'}">
+      <div class="ab-icon">${p.oa ? '✓' : '⊘'}</div>
+      <div>
+        <div class="ab-title ${p.oa ? 'oa' : 'nf'}">${p.oa ? 'Free version available' : 'No free version found'}</div>
+        <div class="ab-sub">${p.oa ? 'Open Access · via Unpaywall / OpenAlex · Direct PDF link' : 'Try Reference Excavator below or contact the author directly'}</div>
+      </div>
+    </div>
+    <div class="slbl">Paper</div>
+    <div class="ptitle">${p.title}</div>
+    <div class="pauth">${p.authors}</div>
+    <div class="pmeta">
+      <span class="bdg yr">${p.year}</span>
+      <span class="bdg jn">${p.journal}</span>
+      <span class="bdg doi">DOI: ${p.doi}</span>
+    </div>
+    ${p.keywords && p.keywords.length ? `<div class="kws">${p.keywords.map(k => `<span class="kw">${k}</span>`).join('')}</div>` : ''}
+    <div class="divider"></div>
+    <div class="slbl">Abstract</div>
+    <div class="abst">${p.abstract}</div>
+    <div class="divider"></div>
+    <div class="slbl">Author Connect</div>
+    <div class="aname">${authorName}</div>
+    ${p.affil ? `<div class="aaffil">${p.affil}</div>` : ''}
+    <div class="alinks">
+      <a class="alink em" href="${contactUrl}" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M1 5l7 5 7-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        ${contactLabel}
+      </a>
+      <a class="alink" href="${rgUrl}" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 8h5M8 5.5v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        ResearchGate Profile
+      </a>
+      <a class="alink" href="${gsUrl}" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4.5h12l-6 6-6-6z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/><path d="M8 10.5v3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        Google Scholar
+      </a>
+    </div>`;
+
+  $("nbtns").innerHTML =
+    `<div class="nbtn" id="nb-refs" onclick="openRP('refs')">
+      <div class="nbt">Reference Network</div>
+      <div class="nbc2"><span class="nbc free">✓ ${rf} free</span><span class="nbc paid">⊘ ${p.refs.length - rf} paid</span></div>
+    </div>
+    <div class="nbtn" id="nb-cites" onclick="openRP('cites')">
+      <div class="nbt">Citation Network</div>
+      <div class="nbc2"><span class="nbc free">✓ ${cf} free</span><span class="nbc paid">⊘ ${p.cites.length - cf} paid</span></div>
+    </div>`;
+}
+function openRP(state){$('lpane').classList.add('rp-open');$('rpane').classList.add('open');switchRP(state)}
+function closeRP(){currentRP='';$('lpane').classList.remove('rp-open');$('lpane').classList.remove('resized');$('lpane').style.width='';$('rpane').classList.remove('open');const pt=$('pt-btn');if(pt)pt.classList.remove('active');['nb-refs','nb-cites'].forEach(id=>{const e=$(id);if(e)e.classList.remove('active')})}
+function switchRP(state){
+  currentRP=state;
+  ['preview','refs','cites'].forEach(s=>{
+    const el=$('rps-'+s);if(el)el.classList.toggle('active',s===state);
+    const btn=$('rbtn-'+s);if(btn)btn.classList.toggle('act',s===state);
+  });
+  const labels={preview:'Paper Preview',refs:'References',cites:'Citations'};
+  $('rpl').textContent=labels[state];
+  ['nb-refs','nb-cites'].forEach(id=>{const e=$(id);if(e)e.classList.remove('active')});
+  if(state==='preview'){
+    const pt=$('pt-btn');if(pt)pt.classList.add('active');
+    renderPDF(cp);
+  } else if(state==='refs'){
+    const nb=$('nb-refs');if(nb)nb.classList.add('active');
+    document.querySelectorAll('#rps-refs .nl-ftab').forEach(b=>b.classList.toggle('active',b.dataset.filter==='all'));
+    const sr=$('sort-refs');if(sr)sr.value=nlSort.refs;
+    renderList('refs', cp.refs||[], 'all', nlSort.refs);
+  } else if(state==='cites'){
+    const nb=$('nb-cites');if(nb)nb.classList.add('active');
+    document.querySelectorAll('#rps-cites .nl-ftab').forEach(b=>b.classList.toggle('active',b.dataset.filter==='all'));
+    const sc=$('sort-cites');if(sc)sc.value=nlSort.cites;
+    renderList('cites', cp.cites||[], 'all', nlSort.cites);
+  }
+}
+function renderPDF(p) {
+  const w = $('pdfwrap');
+  if (!w) return;
+  if (p && p.oa && p.pdf) {
+    const url = p.pdf;
+    w.innerHTML = `
+      <div class="pdfbar" style="flex-shrink:0;gap:10px;align-items:center">
+        <span style="font-size:12px;color:var(--green);font-weight:600">✓ Open Access</span>
+        <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <button class="btn-action btn-download" style="padding:7px 14px;font-size:12px"
+            onclick="window.open('${url}','_blank')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0">
+              <path d="M3 3h10v10H3z" stroke="currentColor" stroke-width="1.3" rx="1.5"/>
+              <path d="M6.5 6.5L9.5 9.5M9.5 6.5H6.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+            Open PDF in new tab ↗
+          </button>
+          <span style="font-size:10px;color:var(--ink-faint)">Some publishers block in-app preview</span>
+        </div>
+      </div>
+      <iframe src="${url}" id="pdfembed" allow="fullscreen"
+        style="flex:1;border:none;width:100%;min-height:300px"></iframe>
+      <div id="pdffb" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:40px;text-align:center">
+        <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+          <rect x="4" y="3" width="28" height="34" rx="3" stroke="var(--rule)" stroke-width="1.8"/>
+          <path d="M11 13h22M11 19h22M11 25h14" stroke="var(--rule)" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="35" cy="35" r="8" fill="var(--parch-dark)" stroke="var(--rule-light)" stroke-width="1.5"/>
+          <path d="M32 35l2 2 4-4" stroke="var(--orange)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <h3 style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:var(--navy);margin-bottom:10px">Preview unavailable</h3>
+          <p style="font-size:13px;color:var(--ink-soft);max-width:275px;line-height:1.75;margin-bottom:20px">
+            This publisher doesn't allow PaprDoor to display PDFs inline.<br>Open it directly in your browser — it's free.
+          </p>
+          <button class="btn-action btn-download" onclick="window.open('${url}','_blank')" style="padding:10px 22px;font-size:13px">
+            Open PDF in new tab ↗
+          </button>
+        </div>
+      </div>`;
+    setTimeout(() => {
+      const iframe = $('pdfembed'), fb = $('pdffb');
+      if (!iframe || !fb) return;
+      let settled = false;
+      const showFallback = () => {
+        if (settled) return;
+        settled = true;
+        iframe.style.display = 'none';
+        fb.style.display = 'flex';
+      };
+      // 2-second backstop: show fallback if iframe never fires onload (publisher hard-blocking)
+      const blockTimer = setTimeout(showFallback, 2000);
+      iframe.onerror = () => { clearTimeout(blockTimer); showFallback(); };
+      iframe.onload = () => {
+        clearTimeout(blockTimer);
+        try {
+          const doc = iframe.contentDocument;
+          if (doc && (!doc.body || doc.body.innerHTML.trim() === '')) {
+            showFallback();
+          }
+        } catch(e) {
+          // Cross-origin: server responded — arXiv/PMC/bioRxiv embed fine, keep iframe
+        }
+      };
+    }, 150);
+  } else {
+    w.innerHTML = `<div class="pdf-fb">
+      <div class="pdf-fb-icon"><svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <circle cx="13" cy="13" r="11" stroke="var(--ink-faint)" stroke-width="1.6"/>
+        <path d="M13 8v6M13 17v1" stroke="var(--ink-faint)" stroke-width="2" stroke-linecap="round"/>
+      </svg></div>
+      <h3 style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--navy)">No free version found</h3>
+      <p style="font-size:13px;color:var(--ink-soft);max-width:280px;line-height:1.7">This paper is paywalled. Use the Reference or Citation Network to find freely accessible related papers, or contact the author directly.</p>
+      <div style="display:flex;gap:12px">
+        <button class="rpbtn" onclick="switchRP('refs')" style="padding:10px 18px;font-size:12px">View References →</button>
+        <button class="rpbtn" onclick="switchRP('cites')" style="padding:10px 18px;font-size:12px">View Citations →</button>
+      </div>
+      <div style="margin-top:16px;text-align:center">
+        <div style="font-size:11px;color:var(--ink-faint);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Find free version</div>
+        <div style="display:flex;gap:10px;justify-content:center">
+          <button class="find-free-btn" title="ResearchGate" onclick="openFindFree('researchgate')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" stroke="currentColor" stroke-width="1.5"/><path d="M8 8h4.5a2.5 2.5 0 010 5H8m0-5v8m4.5-3h2L16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span>RG</span>
+          </button>
+          <button class="find-free-btn" title="Google Scholar" onclick="openFindFree('scholar')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M2 17l10 5 10-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 12l10 5 10-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span>GS</span>
+          </button>
+          <button class="find-free-btn" title="Semantic Scholar" onclick="openFindFree('semantic')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><circle cx="4" cy="6" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="20" cy="6" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="4" cy="18" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="20" cy="18" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 7l4 4M18 7l-4 4M6 17l4-4M18 17l-4-4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <span>SS</span>
+          </button>
+          <button class="find-free-btn" title="Unpaywall" onclick="openFindFree('unpaywall')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5" fill="currentColor"/></svg>
+            <span>UP</span>
+          </button>
+          <button class="find-free-btn" title="Shodhganga 🇮🇳" onclick="openFindFree('shodhganga')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 2 4 5 4 10c0 6 8 12 8 12s8-6 8-12c0-5-4-8-8-8z" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.5"/></svg>
+            <span>IN</span>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }
+}
+
+
+function openFindFree(engine) {
+  const title = cp?.title || '';
+  const authors = cp?.authors || '';
+  const year = cp?.year || '';
+  const q = encodeURIComponent([title, authors, year].filter(Boolean).join(' '));
+  const urls = {
+    researchgate: 'https://www.researchgate.net/search?q=' + q,
+    scholar:      'https://scholar.google.com/scholar?q=' + q,
+    semantic:     'https://www.semanticscholar.org/search?q=' + q,
+    unpaywall:    'https://unpaywall.org/' + (cp?.doi || ''),
+    shodhganga:   'https://shodhganga.inflibnet.ac.in/simple-search?query=' + q
+  };
+  window.open(urls[engine], '_blank');
+}
+
+let isResizing = false;
+const lpane = $("lpane");
+const rpane = $("rpane");
+const divider = $("split-divider");
+
+divider.addEventListener("mousedown", (e) => {
+  isResizing = true;
+  lpane.classList.add("resized");
+  document.body.style.cursor = "col-resize";
+});
+
+document.addEventListener("mousemove", (e) => {
+  if (!isResizing) return;
+
+  let newLeftWidth = e.clientX - lpane.getBoundingClientRect().left;
+  const totalWidth = lpane.parentElement.clientWidth;
+  const minLeftWidth = 320;
+  const minRightWidth = 400;
+
+  if (newLeftWidth < minLeftWidth) {
+    newLeftWidth = minLeftWidth;
+  }
+  if (totalWidth - newLeftWidth < minRightWidth) {
+    newLeftWidth = totalWidth - minRightWidth;
+  }
+
+  lpane.style.width = `${newLeftWidth}px`;
+});
+
+document.addEventListener("mouseup", () => {
+  isResizing = false;
+  lpane.classList.remove("resized");
+  document.body.style.cursor = "";
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.nl-search-wrap')) {
+    document.querySelectorAll('.nl-search-drop').forEach(d => d.style.display = 'none');
+  }
+});
+
+</script>
+</body>
+</html>
