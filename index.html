@@ -1847,7 +1847,7 @@ function renderList(type, items, filter, sort) {
         ` data-check-abstract="${encodeURIComponent(p.abstract||'')}"`
       : '';
 
-    return `<div class="nl-card" ${checkAttr} data-doi="${esc(p.doi || '')}">
+    return `<div class="nl-card" ${checkAttr} data-doi="${esc(p.doi || '')}" ${section === 'free' ? 'style="border-left:3px solid var(--green)"' : ''}>
       ${viewBtn}
       <div class="nl-title">${p.title || 'Untitled'}</div>
       ${meta ? `<div class="nl-meta">${meta}</div>` : ''}
@@ -1972,27 +1972,33 @@ async function checkOtherSources(cardEl, title, authors, year) {
     if (pdfUrl) {
       cardEl.style.borderLeft = '3px solid var(--green)';
 
-      const existingBadge = cardEl.querySelector('.bdg');
-      const freeBadge = document.createElement('span');
-      freeBadge.className = 'bdg oa';
-      freeBadge.textContent = '✓ Free version found';
-      if (existingBadge) {
-        existingBadge.parentNode.insertBefore(freeBadge, existingBadge);
+      const noDoi = cardEl.querySelector('.bdg');
+      if (noDoi) {
+        const freeBadge = document.createElement('span');
+        freeBadge.className = 'bdg oa';
+        freeBadge.style.marginRight = '6px';
+        freeBadge.textContent = '✓ Free version found';
+        noDoi.parentNode.insertBefore(freeBadge, noDoi);
       }
 
       let actionArea = cardEl.querySelector('.nl-action');
       if (!actionArea) {
         actionArea = document.createElement('div');
         actionArea.className = 'nl-action';
-        cardEl.appendChild(actionArea);
+        actionArea.style.cssText =
+          'flex-shrink:0;display:flex;flex-direction:column;'
+          + 'align-items:flex-end;gap:5px;margin-left:auto;padding-left:12px';
+        const cardInner = cardEl.querySelector('.nl-card-inner') || cardEl;
+        cardInner.appendChild(actionArea);
       }
 
       const viewBtn = document.createElement('button');
-      viewBtn.className = 'nl-view-btn';
+      viewBtn.className = 'bvw';
       viewBtn.textContent = 'View Paper →';
-      viewBtn.onclick = () => foundDoi
-        ? loadFromList(foundDoi, pdfUrl)
-        : window.open(pdfUrl, '_blank');
+      viewBtn.onclick = (e) => {
+        e.stopPropagation();
+        foundDoi ? loadFromList(foundDoi, pdfUrl) : window.open(pdfUrl, '_blank');
+      };
       actionArea.appendChild(viewBtn);
     }
   } catch(e) {}
