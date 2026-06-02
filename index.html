@@ -1682,7 +1682,7 @@ function loadPaper(paper, skipHistory) {
 function renderLeft(p) {
   const rf = p.refs.filter(r => r.free).length;
   const cf = p.cites.filter(c => c.free).length;
-  $("lp-actions").innerHTML = `<div class="lp-paper-short">${trunc(p.title, 60)}</div>`;
+  $("lp-actions").innerHTML = '';
 
   // Build working author-connect links
   const authorName  = p.authorName || p.authors.split(',')[0].trim();
