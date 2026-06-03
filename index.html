@@ -1306,42 +1306,30 @@ async function fetchDOI(doi) {
       .filter(r => r.title);
     refs = mergeByDoi(refs, crRefs);
 
-    // Enrich no-DOI refs by searching OpenAlex by title
-    // CrossRef reference lists often omit DOIs even for papers that have them
-    const noDOIrefs = refs.filter(r => !r.doi && r.title && r.title.length > 10);
+    // Enrich no-DOI refs via OpenAlex title search
+    const noDOIrefs = refs.filter(r => !r.doi && r.title && r.title.length > 15 && !r.title.startsWith('http'));
     if (noDOIrefs.length > 0) {
-      await Promise.allSettled(
-        noDOIrefs.slice(0, 20).map(async (item, idx) => {
-          await new Promise(r => setTimeout(r, idx * 80)); // stagger
-          try {
-            const res = await fetch(
-              'https://api.openalex.org/works?search=' +
-              encodeURIComponent(item.title.substring(0, 100)) +
-              '&per_page=1&select=doi,open_access,best_oa_location,title&mailto=hello@paprdoor.org'
-            );
-            const data = await res.json();
-            const work = data.results?.[0];
-            if (!work) return;
-            // Verify title similarity before trusting the match
-            const queryTitle = item.title.toLowerCase().replace(/[^a-z0-9]/g,'');
-            const resultTitle = (work.title||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-            if (queryTitle.length < 15 || !resultTitle.startsWith(queryTitle.substring(0,15))) return;
-            // Assign DOI if found
-            const doi = work.doi?.replace('https://doi.org/','');
-            if (doi) {
-              item.doi = doi;
-              // Check OA status
-              const pdfUrl = work.best_oa_location?.url_for_pdf || 
-                (work.open_access?.oa_url?.endsWith('.pdf') ? work.open_access.oa_url : null) ||
-                work.open_access?.oa_url || null;
-              if (work.open_access?.is_oa && pdfUrl) {
-                item.free = true;
-                item.pdf = pdfUrl;
-              }
-            }
-          } catch(e) {}
-        })
-      );
+      await Promise.allSettled(noDOIrefs.slice(0, 20).map(async (item, idx) => {
+        await new Promise(r => setTimeout(r, idx * 100));
+        try {
+          const res = await fetch(
+            'https://api.openalex.org/works?search='+encodeURIComponent(item.title.substring(0,80))+
+            '&per_page=1&select=doi,open_access,best_oa_location,title&mailto=hello@paprdoor.org'
+          );
+          const data = await res.json();
+          const work = data.results?.[0];
+          if (!work?.title) return;
+          const q = item.title.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,20);
+          const r2 = work.title.toLowerCase().replace(/[^a-z0-9]/g,'');
+          if (q.length < 8 || !r2.includes(q.substring(0,8))) return;
+          const doi = work.doi?.replace('https://doi.org/','');
+          if (!doi) return;
+          item.doi = doi;
+          const pdfUrl = work.best_oa_location?.url_for_pdf ||
+            (work.open_access?.is_oa ? work.open_access.oa_url : null) || null;
+          if (work.open_access?.is_oa && pdfUrl) { item.free = true; item.pdf = pdfUrl; }
+        } catch(e) {}
+      }));
     }
 
     // Citations: SS primary + OpenCitations merged
@@ -1846,9 +1834,7 @@ function renderList(type, items, filter, sort) {
   const esc = s => (s || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
 
   const makeCard = (p, section) => {
-    const meta = [p.authors, p.year, p.journal].filter(Boolean).join(' · ');
-
-    // 1. docType and docTypeBadge FIRST — used by badge below
+    const meta = [p.authors, p.year, p.journal].filter(Boolean).join(' \u00b7 ');
     const docType = (() => {
       if (section !== 'other') return '';
       const j = (p.journal||'').toLowerCase(), t = (p.title||'').toLowerCase();
@@ -1860,63 +1846,37 @@ function renderList(type, items, filter, sort) {
       return 'Paper';
     })();
     const docTypeBadge = section === 'other'
-      ? '<span class="bdg" style="background:var(--parch-dark);color:var(--ink-faint);margin-left:4px">' + docType + '</span>'
+      ? '<span class="bdg" style="background:var(--parch-dark);color:var(--ink-faint);margin-left:4px">'+docType+'</span>'
       : '';
-
-    // 2. otherFree: this no-DOI item has a confirmed free version
     const otherFree = section === 'other' && !!p._foundPdf;
     const activePdf = p.pdf || p._foundPdf || '';
     const activeDoi = p.doi || p._foundDoi || '';
-
-    // 3. badge — can now safely use docTypeBadge
     const badge =
-      section === 'free'  ? '✓ <span class="nl-badge free">✓ Free</span>' :
-      section === 'paid'  ? '<span class="nl-badge paid">⊘ Paywalled</span>' :
-      otherFree           ? '<span class="nl-badge free">✓ Free version found</span>' :
-                            '<span class="nl-badge nodoi">No DOI</span>' + docTypeBadge;
-
+      section === 'free'  ? '<span class="nl-badge free">\u2713 Free</span>' :
+      section === 'paid'  ? '<span class="nl-badge paid">\u2298 Paywalled</span>' :
+      otherFree           ? '<span class="nl-badge free">\u2713 Free version found</span>' :
+                            '<span class="nl-badge nodoi">No DOI</span>'+docTypeBadge;
     const pdfBtn = (section === 'free' && p.pdf)
-      ? '<button class="nl-pdf-btn" onclick="window.open(\'' + (p.pdf||'').replace(/'/g,"&#39;") + '\',\'_blank\')">Open PDF ↗</button>'
+      ? '<button class="nl-pdf-btn" onclick="window.open(\''+p.pdf.replace(/'/g,'&#39;')+'\',\'_blank\')">Open PDF \u2197</button>'
       : '';
-
     const viewBtn = activeDoi
-      ? '<button class="nl-view-btn" onclick="loadFromList(\'' + activeDoi.replace(/'/g,"&#39;") + '\',\'' + activePdf.replace(/'/g,"&#39;") + '\',\'' + type + '\')">View Paper →</button>'
+      ? '<button class="nl-view-btn" onclick="loadFromList(\''+activeDoi.replace(/'/g,'&#39;')+'\',\''+activePdf.replace(/'/g,'&#39;')+'\',\''+type+'\')">View Paper \u2192</button>'
       : '';
-
     const searchWrap = (section === 'other' && !otherFree)
-      ? `<div class="nl-search-wrap" style="position:relative;margin-top:8px">
-          <button class="nl-search-btn"
-            onclick="toggleSearchDrop(this)"
-            data-title="${encodeURIComponent(p.title||'')}"
-            data-authors="${encodeURIComponent(p.authors||'')}"
-            data-year="${p.year||''}">
-            🔍 Search ▾
-          </button>
-          <div class="nl-search-drop" style="display:none">
-            <a class="nl-search-opt" onclick="openSearch('scholar',this)">Google Scholar</a>
-            <a class="nl-search-opt" onclick="openSearch('semantic',this)">Semantic Scholar</a>
-            <a class="nl-search-opt" onclick="openSearch('base',this)">BASE</a>
-            <a class="nl-search-opt" onclick="openSearch('shodhganga',this)">🇮🇳 Shodhganga</a>
-          </div>
-        </div>`
+      ? `<div class="nl-search-wrap" style="position:relative;margin-top:8px"><button class="nl-search-btn" onclick="toggleSearchDrop(this)" data-title="${encodeURIComponent(p.title||'')}" data-authors="${encodeURIComponent(p.authors||'')}" data-year="${p.year||''}">\uD83D\uDD0D Search \u25BE</button><div class="nl-search-drop" style="display:none"><a class="nl-search-opt" onclick="openSearch('scholar',this)">Google Scholar</a><a class="nl-search-opt" onclick="openSearch('semantic',this)">Semantic Scholar</a><a class="nl-search-opt" onclick="openSearch('base',this)">BASE</a><a class="nl-search-opt" onclick="openSearch('shodhganga',this)">\uD83C\uDDEE\uD83C\uDDF3 Shodhganga</a></div></div>`
       : '';
-
     const checkAttr = section === 'other'
-      ? 'data-check-title="' + encodeURIComponent(p.title||'') + '"'
-        + ' data-check-authors="' + encodeURIComponent(p.authors||'') + '"'
-        + ' data-check-year="' + (p.year||'') + '"'
+      ? 'data-check-title="'+encodeURIComponent(p.title||'')+'" data-check-authors="'+encodeURIComponent(p.authors||'')+'" data-check-year="'+(p.year||'')+'"'
       : '';
-
     const cardStyle = (section === 'free' || otherFree) ? 'border-left:3px solid var(--green)' : '';
-
-    return '<div class="nl-card" ' + checkAttr + ' data-doi="' + (p.doi||'').replace(/"/g,'&quot;') + '" style="' + cardStyle + '">'
-      + '<div class="nl-body">'
-      + '<div class="nl-title">' + (p.title||'Untitled').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
-      + (meta ? '<div class="nl-meta">' + meta + '</div>' : '')
-      + '<div class="nl-footer">' + badge + pdfBtn + searchWrap + '</div>'
-      + '</div>'
-      + '<div class="nl-action">' + viewBtn + '</div>'
-      + '</div>';
+    return '<div class="nl-card" '+checkAttr+' data-doi="'+(p.doi||'').replace(/"/g,'&quot;')+'" style="'+cardStyle+'">'
+      +'<div class="nl-body">'
+      +'<div class="nl-title">'+(p.title||'Untitled').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>'
+      +(meta?'<div class="nl-meta">'+meta+'</div>':'')
+      +'<div class="nl-footer">'+badge+pdfBtn+searchWrap+'</div>'
+      +'</div>'
+      +'<div class="nl-action">'+viewBtn+'</div>'
+      +'</div>';
   }
 
   const section = (cls, label, list, emptyMsg) => `
@@ -1953,7 +1913,7 @@ function renderList(type, items, filter, sort) {
     );
   });
 
-  // Background verification — check ALL papers with DOIs (not just already-free)
+  // Background OA verification — check ALL DOIs, wait 3.5s for checkOtherSources
   setTimeout(() => {
     const allWithDoi = (type === 'refs' ? (cp.refs||[]) : (cp.cites||[]))
       .filter(r => r.doi && !getCached(r.doi));
@@ -1964,21 +1924,13 @@ function renderList(type, items, filter, sort) {
         if (uwCallsToday >= 80000) return resolve();
         uwCallsToday++;
         try {
-          const res = await fetch(
-            'https://api.unpaywall.org/v2/' + item.doi + '?email=hello@paprdoor.org'
-          );
+          const res = await fetch('https://api.unpaywall.org/v2/'+item.doi+'?email=hello@paprdoor.org');
           const data = await res.json();
           const pdf = getBestPdfUrl(data);
           const free = !!(data.is_oa && pdf);
-          oaCache.set(item.doi, {
-            free, pdf: pdf||null,
-            timestamp: Date.now(),
-            ttl: free ? 43200000 : 86400000
-          });
+          oaCache.set(item.doi, { free, pdf: pdf||null, timestamp: Date.now(), ttl: free?43200000:86400000 });
           if (free !== item.free || (pdf && !item.pdf)) {
-            item.free = free;
-            if (pdf) item.pdf = pdf;
-            anyChanged = true;
+            item.free = free; if (pdf) item.pdf = pdf; anyChanged = true;
           }
         } catch(e) {}
         resolve();
@@ -1986,9 +1938,9 @@ function renderList(type, items, filter, sort) {
     );
     Promise.allSettled(checks).then(() => {
       if (!anyChanged) return;
-      const activeBtn = document.querySelector('#rps-' + type + ' .nl-ftab.active');
+      const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
       const curFilter = activeBtn ? activeBtn.dataset.filter : filter;
-      renderList(type, type === 'refs' ? (cp.refs||[]) : (cp.cites||[]), curFilter, sort);
+      renderList(type, type==='refs'?(cp.refs||[]):(cp.cites||[]), curFilter, sort);
     });
   }, 3500);
 }
@@ -2059,7 +2011,6 @@ async function checkOtherSources(cardEl, title, authors, year) {
     }
 
     if (pdfUrl) {
-      // Store on item data so re-renders preserve this state
       const itemList = type === 'refs' ? (cp.refs||[]) : (cp.cites||[]);
       const matchItem = itemList.find(r =>
         (r.title||'').trim().toLowerCase() === title.trim().toLowerCase()
@@ -2068,15 +2019,11 @@ async function checkOtherSources(cardEl, title, authors, year) {
         matchItem._foundPdf = pdfUrl;
         matchItem._foundDoi = foundDoi || matchItem.doi || null;
       }
-      // Update DOM immediately
       cardEl.style.borderLeft = '3px solid var(--green)';
       const footer = cardEl.querySelector('.nl-footer');
       if (footer) {
-        const existingBadge = footer.querySelector('.nl-badge');
-        if (existingBadge) {
-          existingBadge.className = 'nl-badge free';
-          existingBadge.textContent = '✓ Free version found';
-        }
+        const badge = footer.querySelector('.nl-badge');
+        if (badge) { badge.className = 'nl-badge free'; badge.textContent = '✓ Free version found'; }
       }
       const act = cardEl.querySelector('.nl-action');
       if (act && !act.querySelector('.nl-view-btn')) {
