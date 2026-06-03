@@ -1860,6 +1860,9 @@ function renderList(type, items, filter, sort) {
   }
 
   container.innerHTML = html;
+  console.log('renderList DOM written, filter:', filter,
+    'free section cards:', container.querySelectorAll('.nl-head.free').length,
+    'container parent visible:', container.offsetParent !== null);
 
 
   // Background OA verification — check ALL DOIs, wait 3.5s for checkOtherSources
