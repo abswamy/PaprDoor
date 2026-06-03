@@ -1920,7 +1920,21 @@ function renderList(type, items, filter, sort) {
       if (!anyChanged) return;
       const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
       const curFilter = activeBtn ? activeBtn.dataset.filter : filter;
-      renderList(type, type==='refs'?(cp.refs||[]):(cp.cites||[]), curFilter, sort);
+      const items = type==='refs'?(cp.refs||[]):(cp.cites||[]);
+      renderList(type, items, curFilter, sort);
+      // Update network count badges
+      const freeCount = items.filter(p => p.free && p.pdf).length;
+      const paidCount = items.filter(p => !(p.free && p.pdf) && p.doi).length;
+      const nbRef = document.getElementById('nb-refs');
+      const nbCite = document.getElementById('nb-cites');
+      if (type === 'refs' && nbRef) {
+        nbRef.querySelector('.nc-free').textContent = '✓ ' + freeCount + ' free';
+        nbRef.querySelector('.nc-paid').textContent = '⊘ ' + paidCount + ' paid';
+      }
+      if (type === 'cites' && nbCite) {
+        nbCite.querySelector('.nc-free').textContent = '✓ ' + freeCount + ' free';
+        nbCite.querySelector('.nc-paid').textContent = '⊘ ' + paidCount + ' paid';
+      }
     });
   }, 3500);
 }
