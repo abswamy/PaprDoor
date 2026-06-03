@@ -1764,7 +1764,6 @@ function updateCardBadge(cardEl, free, pdf) {
 }
 
 function renderList(type, items, filter, sort) {
-  if (filter === 'other') console.trace('renderList called with other');
   filter = filter || 'all';
   sort   = sort   || nlSort[type] || 'year-desc';
   const container = $('nl-' + type);
@@ -1782,13 +1781,7 @@ function renderList(type, items, filter, sort) {
   const free  = sorted.filter(p => p.free && p.pdf);
   const paid  = sorted.filter(p => !(p.free && p.pdf) && p.doi);
   const other = sorted.filter(p => !p.doi);
-  console.log('renderList partition:', type,
-    'free:', free.length,
-    'paid:', paid.length,
-    'other:', other.length,
-    'sample free:', free[0]?.title?.substring(0,30),
-    'sample free pdf:', free[0]?.pdf?.substring(0,40)
-  );
+
 
   const esc = s => (s || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
 
@@ -1861,9 +1854,6 @@ function renderList(type, items, filter, sort) {
   }
 
   container.innerHTML = html;
-  console.log('renderList DOM written, filter:', filter,
-    'free section cards:', container.querySelectorAll('.nl-head.free').length,
-    'container parent visible:', container.offsetParent !== null);
 
 
   // Background OA verification — check ALL DOIs, wait 3.5s for checkOtherSources
@@ -1892,19 +1882,32 @@ function renderList(type, items, filter, sort) {
     Promise.allSettled(checks).then(() => {
       if (!anyChanged) return;
       const items = type==='refs' ? (cp.refs||[]) : (cp.cites||[]);
-      // Always switch to All Papers so free papers are visible
-      document.querySelectorAll('#rps-'+type+' .nl-ftab')
-        .forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'));
-      renderList(type, items, 'all', sort);
-      // Update network count badges
       const freeCount = items.filter(p=>p.free&&p.pdf).length;
       const paidCount = items.filter(p=>!(p.free&&p.pdf)&&p.doi).length;
+
+      // Update tab buttons with counts
+      const freeBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="free"]');
+      if (freeBtn && freeCount > 0) {
+        freeBtn.textContent = '● Free Access ('+freeCount+')';
+      }
+
+      // Update network badges
       const nb = document.getElementById(type==='refs'?'nb-refs':'nb-cites');
       if (nb) {
         const fc = nb.querySelector('.nbc.free');
         const pc = nb.querySelector('.nbc.paid');
         if (fc) fc.textContent = '✓ '+freeCount+' free';
         if (pc) pc.textContent = '⊘ '+paidCount+' paid';
+      }
+
+      // Re-render current active tab
+      const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
+      const curFilter = activeBtn ? activeBtn.dataset.filter : 'all';
+      renderList(type, items, curFilter, sort);
+
+      // Show toast if free papers found
+      if (freeCount > 0) {
+        toast('✓ '+freeCount+' free papers found in references');
       }
     });
   }, 3500);
