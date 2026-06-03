@@ -1810,6 +1810,21 @@ function renderList(type, items, filter, sort) {
   const makeCard = (p, section) => {
     const meta = [p.authors, p.year, p.journal].filter(Boolean).join(' · ');
 
+    // Doc type — defined first so badge can use it
+    const docType = (() => {
+      if (section !== 'other') return '';
+      const j = (p.journal||'').toLowerCase(), t = (p.title||'').toLowerCase();
+      if (j.includes('thesis')||j.includes('dissertation')||t.includes('thesis')) return 'Thesis';
+      if (j.includes('report')||t.includes('report')) return 'Report';
+      if (j.includes('conference')||j.includes('proceedings')) return 'Conference';
+      if (j.includes('preprint')||j.includes('arxiv')||j.includes('biorxiv')) return 'Preprint';
+      if (j.includes('book')||j.includes('chapter')) return 'Book';
+      return 'Paper';
+    })();
+    const docTypeBadge = section === 'other'
+      ? `<span class="bdg" style="background:var(--parch-dark);color:var(--ink-faint);margin-left:4px">${docType}</span>`
+      : '';
+
     const badge =
       section === 'free'  ? '<span class="nl-badge free">✓ Free</span>' :
       section === 'paid'  ? '<span class="nl-badge paid">⊘ Paywalled</span>' :
@@ -1819,12 +1834,10 @@ function renderList(type, items, filter, sort) {
       ? `<button class="nl-pdf-btn" onclick="window.open('${esc(p.pdf)}','_blank')">Open PDF ↗</button>`
       : '';
 
-    // "View Paper →" button — only for papers with a DOI
     const viewBtn = p.doi
       ? `<button class="nl-view-btn" onclick="loadFromList('${esc(p.doi)}','${esc(p.pdf||'')}','${type}')">View Paper →</button>`
       : '';
 
-    // Search dropdown — only for Other Sources (no DOI)
     const searchWrap = (section === 'other')
       ? `<div class="nl-search-wrap" style="position:relative;margin-top:8px">
           <button class="nl-search-btn"
@@ -1843,19 +1856,6 @@ function renderList(type, items, filter, sort) {
         </div>`
       : '';
 
-    const docType = (() => {
-      if (section !== 'other') return '';
-      const j = (p.journal||'').toLowerCase(), t = (p.title||'').toLowerCase();
-      if (j.includes('thesis')||j.includes('dissertation')||t.includes('thesis')) return 'Thesis';
-      if (j.includes('report')||t.includes('report')) return 'Report';
-      if (j.includes('conference')||j.includes('proceedings')) return 'Conference';
-      if (j.includes('preprint')||j.includes('arxiv')||j.includes('biorxiv')) return 'Preprint';
-      if (j.includes('book')||j.includes('chapter')) return 'Book';
-      return 'Paper';
-    })();
-    const docTypeBadge = section === 'other'
-      ? `<span class="bdg" style="background:var(--parch-dark);color:var(--ink-faint);margin-left:4px">${docType}</span>`
-      : '';
     const checkAttr = section === 'other'
       ? `data-check-title="${encodeURIComponent(p.title||'')}"` +
         ` data-check-authors="${encodeURIComponent(p.authors||'')}"` +
@@ -1883,15 +1883,21 @@ function renderList(type, items, filter, sort) {
       ${list.length ? list.map(p => makeCard(p, cls)).join('') : `<div class="nl-empty">${emptyMsg}</div>`}
     </div>`;
 
+  // Count total papers with DOIs not yet verified (may change sections)
+  const unverified = sorted.filter(p => p.doi && !getCached(p.doi)).length;
+  const loadingMsg = unverified > 0
+    ? `<div class="nl-empty" style="color:var(--orange)">⏳ Verifying access status for ${unverified} papers…</div>`
+    : '';
+
   let html = '';
   if (filter === 'free') {
-    html += section('free',  'Free Access',   free,  'No free papers found');
+    html += section('free',  'Free Access',   free,  loadingMsg || 'No free papers found');
   } else if (filter === 'paid') {
     html += section('paid',  'Paywalled',     paid,  'No paywalled papers found');
   } else if (filter === 'other') {
     html += section('other', 'Other Sources', other, 'No other sources found');
   } else {
-    html += section('free',  'Free Access',   free,  'No free papers found');
+    html += section('free',  'Free Access',   free,  loadingMsg || 'No free papers found');
     html += section('paid',  'Paywalled',     paid,  'No paywalled papers found');
     if (other.length) html += section('other', 'Other Sources', other, '');
   }
@@ -1908,18 +1914,60 @@ function renderList(type, items, filter, sort) {
     );
   });
 
-  // Background OA verification — staggered, cache-aware, rate-limited
-  setTimeout(() => {
-    const freeDois = (cp.refs || []).concat(cp.cites || []).filter(r => r.free && r.doi);
-    freeDois.forEach((item, index) => {
-      const doi = item.doi;
-      if (!doi) return;
-      setTimeout(() => {
-        const cardEl = document.querySelector('[data-doi="' + doi + '"]');
-        verifyAndUpdate(doi, cardEl);
-      }, index * 100);
+  // Background OA verification — verify ALL papers with DOIs immediately
+  // This corrects both false-free and false-paywalled badges
+  (() => { setTimeout(() => {
+    const allWithDoi = type === 'refs'
+      ? (cp.refs || []).filter(r => r.doi)
+      : (cp.cites || []).filter(r => r.doi);
+    
+    let changed = false;
+    const checks = allWithDoi.slice(0, 50).map((item, index) =>
+      new Promise(resolve => setTimeout(async () => {
+        const doi = item.doi;
+        const cached = getCached(doi);
+        if (cached) {
+          if (cached.free !== item.free || cached.pdf !== item.pdf) {
+            item.free = cached.free;
+            item.pdf = cached.pdf || item.pdf;
+            changed = true;
+          }
+          resolve();
+          return;
+        }
+        if (uwCallsToday >= 80000) { resolve(); return; }
+        uwCallsToday++;
+        try {
+          const res = await fetch(
+            'https://api.unpaywall.org/v2/' + doi + '?email=hello@paprdoor.org'
+          );
+          const data = await res.json();
+          const bestPdf = getBestPdfUrl(data);
+          const free = !!(data.is_oa && bestPdf);
+          oaCache.set(doi, {
+            free, pdf: bestPdf || null,
+            timestamp: Date.now(),
+            ttl: free ? 12*60*60*1000 : 24*60*60*1000
+          });
+          if (free !== item.free || (bestPdf && bestPdf !== item.pdf)) {
+            item.free = free;
+            item.pdf = bestPdf || item.pdf;
+            changed = true;
+          }
+        } catch(e) {}
+        resolve();
+      }, index * 150))
+    );
+    
+    Promise.allSettled(checks).then(() => {
+      if (changed) {
+        // Preserve current filter when re-rendering
+        const activeBtn = document.querySelector(`#rps-${type} .nl-ftab.active`);
+        const currentFilter = activeBtn ? activeBtn.dataset.filter : filter;
+        renderList(type, type === 'refs' ? cp.refs : cp.cites, currentFilter, sort);
+      }
     });
-  }, 500);
+  }, 100); })();
 }
 
 function openPreviewPane(pdfUrl, title, item) {
