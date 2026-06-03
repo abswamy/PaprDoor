@@ -1764,6 +1764,7 @@ function updateCardBadge(cardEl, free, pdf) {
 }
 
 function renderList(type, items, filter, sort) {
+  if (filter === 'other') console.trace('renderList called with other');
   filter = filter || 'all';
   sort   = sort   || nlSort[type] || 'year-desc';
   const container = $('nl-' + type);
