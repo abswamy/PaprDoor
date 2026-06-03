@@ -1339,7 +1339,7 @@ async function fetchDOI(doi) {
     );
 
     // Batch OA check for refs via OpenAlex (authoritative for OA status)
-    const refsWithDoi = refs.filter(r => r.doi).slice(0, 40);
+    const refsWithDoi = refs.filter(r => r.doi && !/[[\]();]/.test(r.doi)).slice(0, 40);
     if (refsWithDoi.length > 0) {
       try {
         const doiFilter = refsWithDoi.map(r => r.doi).join('|');
@@ -1914,7 +1914,7 @@ function renderList(type, items, filter, sort) {
           }
         } catch(e) {}
         resolve();
-      }, idx * 150))
+      }, idx * 250))
     );
     Promise.allSettled(checks).then(() => {
       if (!anyChanged) return;
