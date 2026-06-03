@@ -1338,19 +1338,17 @@ async function fetchDOI(doi) {
       })
     );
 
-    // Batch OA check for refs via OpenAlex — split into chunks of 20 to avoid 404s
-    const safeDois = refs.filter(r => r.doi && !/[[\]();]/.test(r.doi));
-    const oaMap = {};
-    const chunkSize = 20;
-    for (let i = 0; i < Math.min(safeDois.length, 40); i += chunkSize) {
-      const chunk = safeDois.slice(i, i + chunkSize);
+    // Batch OA check for refs via OpenAlex
+    const refsWithDoi = refs.filter(r => r.doi && !/[[\]();]/.test(r.doi)).slice(0, 20);
+    if (refsWithDoi.length > 0) {
       try {
-        const doiFilter = chunk.map(r => r.doi).join('|');
+        const doiFilter = refsWithDoi.map(r => r.doi).join('|');
         const oaResp = await fetch(
-          `https://api.openalex.org/works?filter=doi:${doiFilter}&select=doi,open_access,best_oa_location&per_page=${chunkSize}&mailto=hello@paprdoor.org`
+          `https://api.openalex.org/works?filter=doi:${doiFilter}&select=doi,open_access,best_oa_location&per_page=20&mailto=hello@paprdoor.org`
         );
         if (oaResp.ok) {
           const oaJson = await oaResp.json();
+          const oaMap = {};
           (oaJson.results || []).forEach(w => {
             const d = (w.doi || '').replace('https://doi.org/', '').toLowerCase();
             if (d) oaMap[d] = {
@@ -1360,17 +1358,15 @@ async function fetchDOI(doi) {
                    (w.open_access?.is_oa ? w.open_access.oa_url : null) || null
             };
           });
+          refs = refs.map(r => {
+            if (!r.doi) return r;
+            const key = r.doi.toLowerCase();
+            if (!(key in oaMap)) return r;
+            const oa = oaMap[key];
+            return { ...r, free: oa.free, pdf: oa.pdf || r.pdf || null };
+          });
         }
-      } catch (e) { /* chunk failed — keep existing status */ }
-    }
-    if (Object.keys(oaMap).length > 0) {
-      refs = refs.map(r => {
-        if (!r.doi) return r;
-        const key = r.doi.toLowerCase();
-        if (!(key in oaMap)) return r;
-        const oa = oaMap[key];
-        return { ...r, free: oa.free, pdf: oa.pdf || r.pdf || null };
-      });
+      } catch (e) { /* OA check failed — keep existing status */ }
     }
 
     return {
