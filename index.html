@@ -1918,9 +1918,15 @@ function renderList(type, items, filter, sort) {
     );
     Promise.allSettled(checks).then(() => {
       if (!anyChanged) return;
-      const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
-      const curFilter = activeBtn ? activeBtn.dataset.filter : filter;
-      renderList(type, type==='refs'?(cp.refs||[]):(cp.cites||[]), curFilter, sort);
+      const items = type==='refs' ? (cp.refs||[]) : (cp.cites||[]);
+      // Switch to All Papers tab so user sees the updated results
+      const allBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="all"]');
+      if (allBtn) {
+        document.querySelectorAll('#rps-'+type+' .nl-ftab')
+          .forEach(b => b.classList.remove('active'));
+        allBtn.classList.add('active');
+      }
+      renderList(type, items, 'all', sort);
     });
   }, 3500);
 }
