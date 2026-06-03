@@ -1306,6 +1306,44 @@ async function fetchDOI(doi) {
       .filter(r => r.title);
     refs = mergeByDoi(refs, crRefs);
 
+    // Enrich no-DOI refs by searching OpenAlex by title
+    // CrossRef reference lists often omit DOIs even for papers that have them
+    const noDOIrefs = refs.filter(r => !r.doi && r.title && r.title.length > 10);
+    if (noDOIrefs.length > 0) {
+      await Promise.allSettled(
+        noDOIrefs.slice(0, 20).map(async (item, idx) => {
+          await new Promise(r => setTimeout(r, idx * 80)); // stagger
+          try {
+            const res = await fetch(
+              'https://api.openalex.org/works?search=' +
+              encodeURIComponent(item.title.substring(0, 100)) +
+              '&per_page=1&select=doi,open_access,best_oa_location,title&mailto=hello@paprdoor.org'
+            );
+            const data = await res.json();
+            const work = data.results?.[0];
+            if (!work) return;
+            // Verify title similarity before trusting the match
+            const queryTitle = item.title.toLowerCase().replace(/[^a-z0-9]/g,'');
+            const resultTitle = (work.title||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+            if (queryTitle.length < 15 || !resultTitle.startsWith(queryTitle.substring(0,15))) return;
+            // Assign DOI if found
+            const doi = work.doi?.replace('https://doi.org/','');
+            if (doi) {
+              item.doi = doi;
+              // Check OA status
+              const pdfUrl = work.best_oa_location?.url_for_pdf || 
+                (work.open_access?.oa_url?.endsWith('.pdf') ? work.open_access.oa_url : null) ||
+                work.open_access?.oa_url || null;
+              if (work.open_access?.is_oa && pdfUrl) {
+                item.free = true;
+                item.pdf = pdfUrl;
+              }
+            }
+          } catch(e) {}
+        })
+      );
+    }
+
     // Citations: SS primary + OpenCitations merged
     let cites = [];
     if (citRawRes.status === 'fulfilled' && citRawRes.value.ok) {
