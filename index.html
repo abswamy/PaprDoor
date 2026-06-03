@@ -1926,6 +1926,10 @@ function renderList(type, items, filter, sort) {
           .forEach(b => b.classList.remove('active'));
         allBtn.classList.add('active');
       }
+      const container = document.getElementById('nl-' + type);
+      console.log('BG container found:', !!container,
+        'innerHTML length:', container?.innerHTML?.length,
+        'rpane open:', document.getElementById('rpane')?.classList.contains('open'));
       renderList(type, items, 'all', sort);
     });
   }, 3500);
