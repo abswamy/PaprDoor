@@ -1264,7 +1264,7 @@ async function fetchDOI(doi) {
       id:      item.externalIds?.DOI || `ss_${i}`,
       doi:     item.externalIds?.DOI || null,
       title:   item.title || 'Untitled',
-      authors: [...new Set((item.authors || []).map(a => a.name).filter(Boolean))].join(', '),
+      authors: [...new Set((item.authors||[]).map(a=>a.name).filter(Boolean))].join(', '),
       year:    item.year || null,
       free:    !!item.openAccessPdf?.url,
       pdf:     item.openAccessPdf?.url || null,
@@ -1801,8 +1801,8 @@ function renderList(type, items, filter, sort) {
   const sorted = [...items].sort(comparator);
 
   // Partition into three groups (after sorting so order is preserved within each)
-  const free  = sorted.filter(p => p.free === true && !!p.pdf);
-  const paid  = sorted.filter(p => !(p.free === true && !!p.pdf) && !!p.doi);
+  const free  = sorted.filter(p => p.free && p.pdf);
+  const paid  = sorted.filter(p => !(p.free && p.pdf) && p.doi);
   const other = sorted.filter(p => !p.doi);
 
   const esc = s => (s || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
@@ -1845,15 +1845,12 @@ function renderList(type, items, filter, sort) {
 
     const docType = (() => {
       if (section !== 'other') return '';
-      const j = (p.journal || '').toLowerCase();
-      const t = (p.title || '').toLowerCase();
-      if (j.includes('thesis') || j.includes('dissertation') ||
-          t.includes('thesis') || t.includes('dissertation')) return 'Thesis';
-      if (j.includes('report') || t.includes('report')) return 'Report';
-      if (j.includes('conference') || j.includes('proceedings')) return 'Conference';
-      if (j.includes('preprint') || j.includes('arxiv') ||
-          j.includes('biorxiv')) return 'Preprint';
-      if (j.includes('book') || j.includes('chapter')) return 'Book Chapter';
+      const j = (p.journal||'').toLowerCase(), t = (p.title||'').toLowerCase();
+      if (j.includes('thesis')||j.includes('dissertation')||t.includes('thesis')) return 'Thesis';
+      if (j.includes('report')||t.includes('report')) return 'Report';
+      if (j.includes('conference')||j.includes('proceedings')) return 'Conference';
+      if (j.includes('preprint')||j.includes('arxiv')||j.includes('biorxiv')) return 'Preprint';
+      if (j.includes('book')||j.includes('chapter')) return 'Book';
       return 'Paper';
     })();
     const docTypeBadge = section === 'other'
@@ -1992,25 +1989,27 @@ async function checkOtherSources(cardEl, title, authors, year) {
 
     if (pdfUrl) {
       cardEl.style.borderLeft = '3px solid var(--green)';
+      // Insert free badge before No DOI badge in footer
       const nlFooter = cardEl.querySelector('.nl-footer');
       if (nlFooter) {
-        const freeBadge = document.createElement('span');
-        freeBadge.className = 'bdg oa';
-        freeBadge.style.marginRight = '6px';
-        freeBadge.textContent = '\u2713 Free version found';
-        nlFooter.insertBefore(freeBadge, nlFooter.firstChild);
+        const fb = document.createElement('span');
+        fb.className = 'bdg oa';
+        fb.style.marginRight = '6px';
+        fb.textContent = '\u2713 Free version found';
+        nlFooter.insertBefore(fb, nlFooter.firstChild);
       }
-      const actionArea = cardEl.querySelector('.nl-action');
-      if (actionArea) {
-        const btn = document.createElement('button');
-        btn.className = 'bvw';
-        btn.textContent = 'View Paper \u2192';
-        btn.onclick = (e) => {
+      // Insert View Paper button into nl-action
+      const act = cardEl.querySelector('.nl-action');
+      if (act) {
+        const vb = document.createElement('button');
+        vb.className = 'nl-view-btn';
+        vb.textContent = 'View Paper \u2192';
+        vb.onclick = e => {
           e.stopPropagation();
           if (foundDoi) loadFromList(foundDoi, pdfUrl);
           else window.open(pdfUrl, '_blank');
         };
-        actionArea.insertBefore(btn, actionArea.firstChild);
+        act.insertBefore(vb, act.firstChild);
       }
     }
   } catch(e) {}
