@@ -1952,7 +1952,7 @@ function renderList(type, items, filter, sort) {
       const curFilter = activeBtn ? activeBtn.dataset.filter : filter;
       renderList(type, type === 'refs' ? (cp.refs||[]) : (cp.cites||[]), curFilter, sort);
     });
-  }, 200);
+  }, 3500);
 }
 
 function openPreviewPane(pdfUrl, title, item) {
