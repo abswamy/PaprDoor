@@ -1267,6 +1267,7 @@ async function fetchDOI(doi) {
       authors: [...new Set((item.authors || []).map(a => a.name).filter(Boolean))].join(', '),
       year:    item.year || null,
       free:    !!item.openAccessPdf?.url,
+      pdf:     item.openAccessPdf?.url || null,
       journal: item.journal?.name || ''
     }));
 
@@ -1802,7 +1803,7 @@ function renderList(type, items, filter, sort) {
   // Partition into three groups (after sorting so order is preserved within each)
   const free  = sorted.filter(p => p.free === true && !!p.pdf);
   const paid  = sorted.filter(p => !(p.free === true && !!p.pdf) && !!p.doi);
-  const other = sorted.filter(p => !p.doi && !(p.free === true && !!p.pdf));
+  const other = sorted.filter(p => !p.doi);
 
   const esc = s => (s || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
 
@@ -1858,7 +1859,6 @@ function renderList(type, items, filter, sort) {
     const docTypeBadge = section === 'other'
       ? `<span class="bdg" style="background:var(--parch-dark);color:var(--ink-faint);margin-left:4px">${docType}</span>`
       : '';
-
     const checkAttr = section === 'other'
       ? `data-check-title="${encodeURIComponent(p.title||'')}"` +
         ` data-check-authors="${encodeURIComponent(p.authors||'')}"` +
@@ -1992,8 +1992,6 @@ async function checkOtherSources(cardEl, title, authors, year) {
 
     if (pdfUrl) {
       cardEl.style.borderLeft = '3px solid var(--green)';
-
-      // Add free badge to nl-footer BEFORE No DOI badge
       const nlFooter = cardEl.querySelector('.nl-footer');
       if (nlFooter) {
         const freeBadge = document.createElement('span');
@@ -2002,8 +2000,6 @@ async function checkOtherSources(cardEl, title, authors, year) {
         freeBadge.textContent = '\u2713 Free version found';
         nlFooter.insertBefore(freeBadge, nlFooter.firstChild);
       }
-
-      // Add View Paper button to nl-action (always present from makeCard)
       const actionArea = cardEl.querySelector('.nl-action');
       if (actionArea) {
         const btn = document.createElement('button');
