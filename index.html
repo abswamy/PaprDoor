@@ -1800,9 +1800,9 @@ function renderList(type, items, filter, sort) {
   const sorted = [...items].sort(comparator);
 
   // Partition into three groups (after sorting so order is preserved within each)
-  const free  = sorted.filter(p => p.free && (p.doi || p.pdf));
-  const paid  = sorted.filter(p => !p.free && p.doi);
-  const other = sorted.filter(p => !p.doi);
+  const free  = sorted.filter(p => p.free === true && !!p.pdf);
+  const paid  = sorted.filter(p => !(p.free === true && !!p.pdf) && !!p.doi);
+  const other = sorted.filter(p => !p.doi && !(p.free === true && !!p.pdf));
 
   const esc = s => (s || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
 
@@ -1849,7 +1849,7 @@ function renderList(type, items, filter, sort) {
       if (j.includes('thesis') || j.includes('dissertation') ||
           t.includes('thesis') || t.includes('dissertation')) return 'Thesis';
       if (j.includes('report') || t.includes('report')) return 'Report';
-      if (j.includes('conference') || j.includes('proceedings')) return 'Conference Paper';
+      if (j.includes('conference') || j.includes('proceedings')) return 'Conference';
       if (j.includes('preprint') || j.includes('arxiv') ||
           j.includes('biorxiv')) return 'Preprint';
       if (j.includes('book') || j.includes('chapter')) return 'Book Chapter';
@@ -1993,7 +1993,7 @@ async function checkOtherSources(cardEl, title, authors, year) {
     if (pdfUrl) {
       cardEl.style.borderLeft = '3px solid var(--green)';
 
-      // Add free badge to nl-footer before No DOI badge
+      // Add free badge to nl-footer BEFORE No DOI badge
       const nlFooter = cardEl.querySelector('.nl-footer');
       if (nlFooter) {
         const freeBadge = document.createElement('span');
@@ -2003,19 +2003,18 @@ async function checkOtherSources(cardEl, title, authors, year) {
         nlFooter.insertBefore(freeBadge, nlFooter.firstChild);
       }
 
-      // Add View Paper button to nl-action
+      // Add View Paper button to nl-action (always present from makeCard)
       const actionArea = cardEl.querySelector('.nl-action');
       if (actionArea) {
-        const viewBtn = document.createElement('button');
-        viewBtn.className = 'nl-view-btn';
-        viewBtn.style.cssText = 'background:var(--navy);color:white;border:none;border-radius:4px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.2px;white-space:nowrap';
-        viewBtn.textContent = 'View Paper \u2192';
-        viewBtn.onclick = (e) => {
+        const btn = document.createElement('button');
+        btn.className = 'bvw';
+        btn.textContent = 'View Paper \u2192';
+        btn.onclick = (e) => {
           e.stopPropagation();
           if (foundDoi) loadFromList(foundDoi, pdfUrl);
           else window.open(pdfUrl, '_blank');
         };
-        actionArea.insertBefore(viewBtn, actionArea.firstChild);
+        actionArea.insertBefore(btn, actionArea.firstChild);
       }
     }
   } catch(e) {}
