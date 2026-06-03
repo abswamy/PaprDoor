@@ -1306,31 +1306,6 @@ async function fetchDOI(doi) {
       .filter(r => r.title);
     refs = mergeByDoi(refs, crRefs);
 
-    // Enrich no-DOI refs via OpenAlex title search
-    const noDOIrefs = refs.filter(r => !r.doi && r.title && r.title.length > 15 && !r.title.startsWith('http'));
-    if (noDOIrefs.length > 0) {
-      await Promise.allSettled(noDOIrefs.slice(0, 20).map(async (item, idx) => {
-        await new Promise(r => setTimeout(r, idx * 100));
-        try {
-          const res = await fetch(
-            'https://api.openalex.org/works?search='+encodeURIComponent(item.title.substring(0,80))+
-            '&per_page=1&select=doi,open_access,best_oa_location,title&mailto=hello@paprdoor.org'
-          );
-          const data = await res.json();
-          const work = data.results?.[0];
-          if (!work?.title) return;
-          const q = item.title.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,20);
-          const r2 = work.title.toLowerCase().replace(/[^a-z0-9]/g,'');
-          if (q.length < 8 || !r2.includes(q.substring(0,8))) return;
-          const doi = work.doi?.replace('https://doi.org/','');
-          if (!doi) return;
-          item.doi = doi;
-          const pdfUrl = work.best_oa_location?.url_for_pdf ||
-            (work.open_access?.is_oa ? work.open_access.oa_url : null) || null;
-          if (work.open_access?.is_oa && pdfUrl) { item.free = true; item.pdf = pdfUrl; }
-        } catch(e) {}
-      }));
-    }
 
     // Citations: SS primary + OpenCitations merged
     let cites = [];
@@ -1917,15 +1892,6 @@ function renderList(type, items, filter, sort) {
 
   container.innerHTML = html;
 
-  // Check each Other Sources card against OpenAlex for a free version
-  container.querySelectorAll('.nl-card[data-check-title]').forEach(card => {
-    checkOtherSources(
-      card,
-      decodeURIComponent(card.dataset.checkTitle),
-      decodeURIComponent(card.dataset.checkAuthors || ''),
-      card.dataset.checkYear || ''
-    );
-  });
 
   // Background OA verification — check ALL DOIs, wait 3.5s for checkOtherSources
   setTimeout(() => {
