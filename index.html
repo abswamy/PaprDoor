@@ -1923,18 +1923,18 @@ function renderList(type, items, filter, sort) {
     Promise.allSettled(checks).then(() => {
       if (!anyChanged) return;
       const items = type==='refs' ? (cp.refs||[]) : (cp.cites||[]);
-      // Switch to All Papers tab so user sees the updated results
-      const allBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="all"]');
-      if (allBtn) {
-        document.querySelectorAll('#rps-'+type+' .nl-ftab')
-          .forEach(b => b.classList.remove('active'));
-        allBtn.classList.add('active');
+      const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
+      const curFilter = activeBtn ? activeBtn.dataset.filter : 'all';
+      renderList(type, items, curFilter, sort);
+      const freeCount = items.filter(p=>p.free&&p.pdf).length;
+      const paidCount = items.filter(p=>!(p.free&&p.pdf)&&p.doi).length;
+      const nb = document.getElementById(type==='refs'?'nb-refs':'nb-cites');
+      if (nb) {
+        const fc = nb.querySelector('.nbc.free');
+        const pc = nb.querySelector('.nbc.paid');
+        if (fc) fc.textContent = '✓ ' + freeCount + ' free';
+        if (pc) pc.textContent = '⊘ ' + paidCount + ' paid';
       }
-      const container = document.getElementById('nl-' + type);
-      console.log('BG container found:', !!container,
-        'innerHTML length:', container?.innerHTML?.length,
-        'rpane open:', document.getElementById('rpane')?.classList.contains('open'));
-      renderList(type, items, 'all', sort);
     });
   }, 3500);
 }
