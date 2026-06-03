@@ -1837,6 +1837,13 @@ function renderList(type, items, filter, sort) {
   const free  = sorted.filter(p => p.free && p.pdf);
   const paid  = sorted.filter(p => !(p.free && p.pdf) && p.doi);
   const other = sorted.filter(p => !p.doi);
+  console.log('renderList partition:', type,
+    'free:', free.length,
+    'paid:', paid.length,
+    'other:', other.length,
+    'sample free:', free[0]?.title?.substring(0,30),
+    'sample free pdf:', free[0]?.pdf?.substring(0,40)
+  );
 
   const esc = s => (s || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
 
