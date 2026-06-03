@@ -1892,17 +1892,19 @@ function renderList(type, items, filter, sort) {
     Promise.allSettled(checks).then(() => {
       if (!anyChanged) return;
       const items = type==='refs' ? (cp.refs||[]) : (cp.cites||[]);
-      const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
-      const curFilter = activeBtn ? activeBtn.dataset.filter : 'all';
-      renderList(type, items, curFilter, sort);
+      // Always switch to All Papers so free papers are visible
+      document.querySelectorAll('#rps-'+type+' .nl-ftab')
+        .forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'));
+      renderList(type, items, 'all', sort);
+      // Update network count badges
       const freeCount = items.filter(p=>p.free&&p.pdf).length;
       const paidCount = items.filter(p=>!(p.free&&p.pdf)&&p.doi).length;
       const nb = document.getElementById(type==='refs'?'nb-refs':'nb-cites');
       if (nb) {
         const fc = nb.querySelector('.nbc.free');
         const pc = nb.querySelector('.nbc.paid');
-        if (fc) fc.textContent = '✓ ' + freeCount + ' free';
-        if (pc) pc.textContent = '⊘ ' + paidCount + ' paid';
+        if (fc) fc.textContent = '✓ '+freeCount+' free';
+        if (pc) pc.textContent = '⊘ '+paidCount+' paid';
       }
     });
   }, 3500);
