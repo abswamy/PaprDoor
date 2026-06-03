@@ -1338,37 +1338,6 @@ async function fetchDOI(doi) {
       })
     );
 
-    // Batch OA check for refs via OpenAlex
-    const refsWithDoi = refs.filter(r => r.doi && !/[[\]();]/.test(r.doi)).slice(0, 20);
-    if (refsWithDoi.length > 0) {
-      try {
-        const doiFilter = refsWithDoi.map(r => r.doi).join('|');
-        const oaResp = await fetch(
-          `https://api.openalex.org/works?filter=doi:${doiFilter}&select=doi,open_access,best_oa_location&per_page=20&mailto=hello@paprdoor.org`
-        );
-        if (oaResp.ok) {
-          const oaJson = await oaResp.json();
-          const oaMap = {};
-          (oaJson.results || []).forEach(w => {
-            const d = (w.doi || '').replace('https://doi.org/', '').toLowerCase();
-            if (d) oaMap[d] = {
-              free: !!(w.open_access?.is_oa),
-              pdf: w.best_oa_location?.url_for_pdf ||
-                   (w.open_access?.oa_url?.endsWith('.pdf') ? w.open_access.oa_url : null) ||
-                   (w.open_access?.is_oa ? w.open_access.oa_url : null) || null
-            };
-          });
-          refs = refs.map(r => {
-            if (!r.doi) return r;
-            const key = r.doi.toLowerCase();
-            if (!(key in oaMap)) return r;
-            const oa = oaMap[key];
-            return { ...r, free: oa.free, pdf: oa.pdf || r.pdf || null };
-          });
-        }
-      } catch (e) { /* OA check failed — keep existing status */ }
-    }
-
     return {
       doi:        metaDoi,
       title,
