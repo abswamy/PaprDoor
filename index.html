@@ -2230,6 +2230,18 @@ function switchRP(state){
     renderList('cites', cp.cites||[], 'all', nlSort.cites);
   }
 }
+function checkGoogleViewer(iframe) {
+  try {
+    const doc = iframe.contentDocument ||
+                iframe.contentWindow?.document;
+    if (doc && doc.body?.innerHTML?.includes('Unable to generate')) {
+      showPdfFallback();
+    }
+  } catch(e) {
+    // Cross-origin from Google — viewer is loading fine
+  }
+}
+
 function showPdfFallback() {
   const iframe = document.getElementById('pdfembed');
   const fb = document.getElementById('pdffb');
@@ -2262,10 +2274,14 @@ function renderPDF(p) {
           <span style="font-size:10px;color:var(--ink-faint)">Some publishers block in-app preview</span>
         </div>
       </div>
-      <iframe src="${url}" id="pdfembed" allow="fullscreen"
-        sandbox="allow-scripts allow-same-origin"
-        onerror="showPdfFallback()"
-        style="flex:1;border:none;width:100%;min-height:300px"></iframe>
+      <iframe
+        src="https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true"
+        id="pdfembed"
+        allow="fullscreen"
+        style="flex:1;border:none;width:100%;min-height:300px"
+        onload="checkGoogleViewer(this)"
+        onerror="showPdfFallback()">
+      </iframe>
       <div id="pdffb" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px;text-align:center">
         <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
           <rect x="8" y="4" width="32" height="40" rx="4" fill="var(--parch-dark)" stroke="var(--rule)" stroke-width="1.5"/>
@@ -2283,26 +2299,18 @@ function renderPDF(p) {
           </button>
         </div>
       </div>`;
-    // Hide iframe immediately if Chrome blocks it
-    // The top "Open PDF in New Tab" button is the primary action
-    const embedEl = $('pdfembed');
-    if (embedEl) {
-      embedEl.onload = function() {
-        try {
-          const loc = this.contentWindow?.location?.href || '';
-          if (loc.startsWith('chrome-error') ||
-              loc.startsWith('about:')) {
-            this.style.display = 'none';
-          }
-        } catch(e) {
-          // Cross-origin block — hide the broken iframe
-          this.style.display = 'none';
+    setTimeout(() => {
+      const iframe = $('pdfembed');
+      if (!iframe) return;
+      try {
+        const doc = iframe.contentDocument ||
+                    iframe.contentWindow?.document;
+        if (doc?.body?.innerHTML?.includes('Unable to generate') ||
+            doc?.body?.innerHTML?.trim() === '') {
+          showPdfFallback();
         }
-      };
-      embedEl.onerror = function() {
-        this.style.display = 'none';
-      };
-    }
+      } catch(e) {}
+    }, 4000);
   } else {
     w.innerHTML = `<div class="pdf-fb">
       <div class="pdf-fb-icon"><svg width="26" height="26" viewBox="0 0 26 26" fill="none">
