@@ -913,10 +913,10 @@ embed.pdfframe { flex: 1; border: none; width: 100%; min-height: 300px; }
           <option value="Y">Y</option>
           <option value="Z">Z</option>
         </select>
-        <div id="pg-top" style="display:none;align-items:center;gap:6px;margin-left:auto">
+        <div id="pg-top" style="display:none;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap">
           <button class="pg-btn" id="pg-prev2"
             onclick="goPage(currentPage-1)">←</button>
-          <span id="pg-info2" style="font-size:12px;color:var(--ink-faint);white-space:nowrap">1 of 1</span>
+          <div id="pg-numbers" style="display:flex;gap:3px;align-items:center"></div>
           <button class="pg-btn" id="pg-next2"
             onclick="goPage(currentPage+1)">→</button>
         </div>
@@ -1537,7 +1537,7 @@ function searchByTitleFallback(query) {
   const kw = $('kw-input');
   if (kw) { kw.value = query; kw.focus(); }
 }
-async function searchKeywords() {
+async function searchKeywords(page) {
   const rawKw = $('kw-input')?.value.trim();
   if (!rawKw) return;
   navHistory = [];
@@ -1578,9 +1578,12 @@ async function searchKeywords() {
     else if (yrTo)   filters.push('publication_year:' + yrTo);
     if (access === 'oa') filters.push('is_oa:true');
 
+    const pgNum = page || 1;
+    currentPage = pgNum;
     let oaUrl = 'https://api.openalex.org/works?filter='
       + filters.join(',')
-      + '&per_page=10&mailto=hello@paprdoor.org'
+      + '&per_page=20&page=' + pgNum
+      + '&mailto=hello@paprdoor.org'
       + '&select=id,doi,title,authorships,publication_year,'
       + 'primary_location,open_access,abstract_inverted_index,'
       + 'best_oa_location';
@@ -1612,6 +1615,7 @@ async function searchKeywords() {
 
     if (oaRes.status === 'fulfilled') {
       const data = await oaRes.value.json();
+      totalResults = data.meta?.count || 0;
       (data.results || []).forEach(w => {
         const doi = w.doi?.replace('https://doi.org/','');
         const bestOaUrl = w.best_oa_location?.url_for_pdf ||
@@ -1735,9 +1739,20 @@ function reSearch() {
 function goPage(p) {
   const maxPage = Math.ceil(totalResults / 20) || 1;
   if (p < 1 || p > maxPage) return;
-  searchKeywords(p, lastSearch);
-  const rb = document.querySelector('.rb');
-  if (rb) rb.scrollTop = 0;
+  currentPage = p;
+  // Copy current search bar value to kw-input
+  const rqt = $('rqt');
+  const ki = $('kw-input');
+  if (rqt && ki) ki.value = rqt.value || ki.value;
+  // Clear separate fields so slash syntax works
+  const yrFrom = $('yr-from');
+  const yrTo = $('yr-to');
+  const auth = $('auth-input');
+  if (yrFrom) yrFrom.value = '';
+  if (yrTo) yrTo.value = '';
+  if (auth) auth.value = '';
+  searchKeywords(p);
+  window.scrollTo(0, 0);
 }
 function renderResults(q, res, page, total) {
   ar = res; fr = true;
@@ -1767,11 +1782,25 @@ function renderResults(q, res, page, total) {
   // Pagination bar
   const pgTop = $('pg-top');
   if (pgTop) {
-    if (total > 20) {
+    if (totalPages > 1) {
       pgTop.style.display = 'flex';
       $('pg-prev2').disabled = page <= 1;
       $('pg-next2').disabled = page >= totalPages;
-      $('pg-info2').textContent = page + ' of ' + totalPages.toLocaleString();
+      const pgNums = $('pg-numbers');
+      if (pgNums) {
+        let html = '';
+        let start = Math.max(1, page - 2);
+        let end   = Math.min(totalPages, start + 4);
+        if (end - start < 4) start = Math.max(1, end - 4);
+        if (start > 1) html += '<button class="pg-btn" onclick="goPage(1)">1</button>';
+        if (start > 2) html += '<span style="font-size:12px;color:var(--ink-faint)">…</span>';
+        for (let i = start; i <= end; i++) {
+          html += `<button class="pg-btn${i===page?' active':''}" style="${i===page?'background:var(--navy);color:white;':''}" onclick="goPage(${i})">${i}</button>`;
+        }
+        if (end < totalPages - 1) html += '<span style="font-size:12px;color:var(--ink-faint)">…</span>';
+        if (end < totalPages) html += `<button class="pg-btn" onclick="goPage(${totalPages})">${totalPages}</button>`;
+        pgNums.innerHTML = html;
+      }
     } else {
       pgTop.style.display = 'none';
     }
@@ -1807,7 +1836,8 @@ async function openResultPdf(doi, pdf) {
 }
 
 function renderCards(list) {
-  $("rl").innerHTML = list.map(p => `<div class="rc" onclick="handleResultClick('${p.doi}','${(p.title||'').replace(/'/g,"&#39;")}')"><div class="rdot ${p.free ? "oa" : "pd"}"></div><div class="rbdy"><div class="rtl">${p.title}</div><div class="rau">${p.authors}</div><div class="rab">${p.abstract}</div><div class="rmr"><span class="bdg ${p.free ? "oa" : "pd"}">${p.free ? "✓ Open Access" : "⊘ Paywalled"}</span><span class="bdg yr">${p.year}</span><span class="bdg jn">${p.journal}</span><span class="bdg doi">${p.doi || ""}</span></div></div><div class="ract"><button class="bvw">View →</button>${p.free && p.doi ? `<button class="bdl" onclick="event.stopPropagation();openResultPdf('${p.doi}','${p.pdf||''}')">PDF ↓</button>` : ""}</div></div>`).join("");
+  const startNum = ((currentPage - 1) * 20) + 1;
+  $("rl").innerHTML = list.map((p, idx) => `<div class="rc" onclick="handleResultClick('${p.doi}','${(p.title||'').replace(/'/g,"&#39;")}')"><div class="rnum" style="flex-shrink:0;width:28px;text-align:right;font-size:12px;color:var(--ink-faint);font-family:'JetBrains Mono',monospace;padding-top:3px">${startNum + idx}</div><div class="rdot ${p.free ? "oa" : "pd"}"></div><div class="rbdy"><div class="rtl">${p.title}</div><div class="rau">${p.authors}</div><div class="rab">${p.abstract}</div><div class="rmr"><span class="bdg ${p.free ? "oa" : "pd"}">${p.free ? "✓ Open Access" : "⊘ Paywalled"}</span><span class="bdg yr">${p.year}</span><span class="bdg jn">${p.journal}</span><span class="bdg doi">${p.doi || ""}</span></div></div><div class="ract"><button class="bvw">View →</button>${p.free && p.doi ? `<button class="bdl" onclick="event.stopPropagation();openResultPdf('${p.doi}','${p.pdf||''}')">PDF ↓</button>` : ""}</div></div>`).join("");
 }
 function filterR(type, el) {
   document.querySelectorAll('.fb .fbtn')
