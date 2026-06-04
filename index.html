@@ -913,14 +913,16 @@ embed.pdfframe { flex: 1; border: none; width: 100%; min-height: 300px; }
           <option value="Y">Y</option>
           <option value="Z">Z</option>
         </select>
+        <div id="pg-top" style="display:none;align-items:center;gap:6px;margin-left:auto">
+          <button class="pg-btn" id="pg-prev2"
+            onclick="goPage(currentPage-1)">←</button>
+          <span id="pg-info2" style="font-size:12px;color:var(--ink-faint);white-space:nowrap">1 of 1</span>
+          <button class="pg-btn" id="pg-next2"
+            onclick="goPage(currentPage+1)">→</button>
+        </div>
       </div>
     </div>
     <div id="rl"></div>
-    <div class="pgbar" id="pgbar" style="display:none">
-      <button class="pg-btn" id="pg-prev" onclick="goPage(currentPage-1)">← Prev</button>
-      <span class="pg-info" id="pg-info">Page 1</span>
-      <button class="pg-btn" id="pg-next" onclick="goPage(currentPage+1)">Next →</button>
-    </div>
   </div>
 </div>
 
@@ -1763,15 +1765,15 @@ function renderResults(q, res, page, total) {
   renderCards(res);
 
   // Pagination bar
-  const pgbar = $('pgbar');
-  if (pgbar) {
+  const pgTop = $('pg-top');
+  if (pgTop) {
     if (total > 20) {
-      pgbar.style.display = 'flex';
-      $('pg-prev').disabled = page <= 1;
-      $('pg-next').disabled = page >= totalPages;
-      $('pg-info').textContent = `Page ${page} of ${totalPages.toLocaleString()}`;
+      pgTop.style.display = 'flex';
+      $('pg-prev2').disabled = page <= 1;
+      $('pg-next2').disabled = page >= totalPages;
+      $('pg-info2').textContent = page + ' of ' + totalPages.toLocaleString();
     } else {
-      pgbar.style.display = 'none';
+      pgTop.style.display = 'none';
     }
   }
 
