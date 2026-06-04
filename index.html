@@ -1233,7 +1233,14 @@ async function fetchDOI(doi) {
       fetch(`https://api.openalex.org/works/doi:${cleanDoi}`),
       fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${cleanDoi}?fields=title,authors,year,journal,externalIds,references.title,references.authors,references.year,references.externalIds,references.openAccessPdf,references.journal`),
       fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${cleanDoi}?fields=citations.title,citations.authors,citations.year,citations.externalIds,citations.openAccessPdf,citations.journal`),
-      fetch(`https://opencitations.net/index/coci/api/v1/citations/${encodeURIComponent(cleanDoi)}`),
+      (() => {
+        const oc = new AbortController();
+        setTimeout(() => oc.abort(), 8000);
+        return fetch(
+          `https://opencitations.net/index/coci/api/v1/citations/${encodeURIComponent(cleanDoi)}`,
+          { signal: oc.signal }
+        );
+      })(),
       fetch(`https://api.unpaywall.org/v2/${cleanDoi}?email=hello@paprdoor.org`),
       fetchEuropePMC(cleanDoi)
     ]);
