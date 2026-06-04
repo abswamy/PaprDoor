@@ -1569,16 +1569,16 @@ async function searchKeywords() {
   loading(true);
   try {
     // Build filters array
-    const filters = ['default.search:' + encodeURIComponent(kw)];
+    const filters = ['title.search:' + encodeURIComponent(kw)];
     if (author) filters.push('author.display_name.search:' + encodeURIComponent(author));
     if (yrFrom && yrTo) filters.push('publication_year:' + yrFrom + '-' + yrTo);
-    else if (yrFrom) filters.push('publication_year:>' + (parseInt(yrFrom)-1));
-    else if (yrTo)   filters.push('publication_year:<' + (parseInt(yrTo)+1));
+    else if (yrFrom) filters.push('publication_year:' + yrFrom);
+    else if (yrTo)   filters.push('publication_year:' + yrTo);
     if (access === 'oa') filters.push('is_oa:true');
 
     let oaUrl = 'https://api.openalex.org/works?filter='
       + filters.join(',')
-      + '&per_page=20&mailto=hello@paprdoor.org'
+      + '&per_page=10&mailto=hello@paprdoor.org'
       + '&select=id,doi,title,authorships,publication_year,'
       + 'primary_location,open_access,abstract_inverted_index,'
       + 'best_oa_location';
