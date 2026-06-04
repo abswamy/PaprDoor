@@ -1219,7 +1219,9 @@ async function fetchEuropePMC(doi) {
 async function fetchDOI(doi) {
   const cleanDoi = doi.trim()
     .replace('https://doi.org/', '')
-    .replace('http://doi.org/', '');
+    .replace('http://doi.org/', '')
+    .replace('DOI:', '')
+    .replace('doi:', '');
 
   try {
     // Fire all sources in parallel — SS refs call also fetches paper metadata fields
@@ -1278,21 +1280,6 @@ async function fetchDOI(doi) {
         authorName = ssData.authors?.[0]?.name || '';
         metaDoi    = ssData.externalIds?.DOI || cleanDoi;
       }
-    }
-
-    // Fallback: if SS direct DOI lookup returned 404, try title search
-    if (!ssData && crM?.title?.[0]) {
-      try {
-        const ssFallback = await fetch(
-          'https://api.semanticscholar.org/graph/v1/paper/search?query='
-          + encodeURIComponent(crM.title[0].substring(0, 100))
-          + '&fields=title,references.title,references.authors,references.year,references.externalIds,references.openAccessPdf,references.journal,citations.title,citations.authors,citations.year,citations.externalIds,citations.openAccessPdf,citations.journal&limit=1'
-        );
-        if (ssFallback.ok) {
-          const ssFallbackData = await ssFallback.json();
-          ssData = ssFallbackData.data?.[0] || null;
-        }
-      } catch(e) {}
     }
 
     if (!title && epmcRes.status === 'fulfilled') {
@@ -1389,8 +1376,6 @@ async function fetchDOI(doi) {
     if (citRawRes.status === 'fulfilled' && citRawRes.value.ok) {
       const citesData = await citRawRes.value.json();
       cites = mapSS(citesData.citations || []);
-    } else if (ssData?.citations?.length) {
-      cites = mapSS(ssData.citations);
     }
     if (ocRes.status === 'fulfilled' && ocRes.value.ok) {
       const ocData = await ocRes.value.json();
