@@ -1621,7 +1621,9 @@ async function searchKeywords() {
           title: w.title,
           authors: (w.authorships||[]).map(a=>a.author?.display_name).filter(Boolean).join(', '),
           year: w.publication_year,
-          journal: w.primary_location?.source?.display_name||'',
+          journal: w.primary_location?.source?.display_name
+            || w.primary_location?.source?.host_organization_name
+            || '',
           free: w.open_access?.is_oa && !!bestOaUrl,
           pdf: bestOaUrl,
           abstract: w.abstract_inverted_index
