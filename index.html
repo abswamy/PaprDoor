@@ -1383,26 +1383,6 @@ async function fetchDOI(doi) {
       cites = mergeByDoi(cites, mapOC(Array.isArray(ocData) ? ocData : []));
     }
 
-    // Enrich OC-only citation stubs (DOI only, no title) with CrossRef metadata
-    const noMetadata = cites.filter(c => (!c.title || c.title === c.doi || c.title === 'Citing paper') && c.doi);
-    await Promise.allSettled(
-      noMetadata.slice(0, 20).map(async item => {
-        const doi = item.doi;
-        try {
-          const res = await fetch(
-            'https://api.crossref.org/works/' + doi,
-            { headers: { 'User-Agent': 'PaprDoor/1.0 (mailto:hello@paprdoor.org)' } }
-          );
-          const data = await res.json();
-          const m = data.message;
-          item.title   = m.title?.[0] || '';
-          item.authors = (m.author || []).map(a => (a.given||'') + ' ' + (a.family||'')).join(', ');
-          item.year    = m.published?.['date-parts']?.[0]?.[0] || null;
-          item.journal = m['container-title']?.[0] || '';
-        } catch(e) {}
-      })
-    );
-
     return {
       doi:        metaDoi,
       title,
