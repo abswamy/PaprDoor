@@ -1826,11 +1826,9 @@ function renderList(type, items, filter, sort) {
       : section === 'paid'
         ? '<span class="nl-badge paid">\u2298 Paywalled'+(p.source?' \u00b7 '+p.source:'')+' </span>'
       : otherFree
-        ? '<span class="nl-badge free">\u2713 Free version found</span>'
+        ? '<span class="nl-badge free">\u2713 Free version found'+(p.source?' \u00b7 '+p.source:'')+' </span>'+'<span class="nl-badge nodoi">No DOI</span>'
         : '<span class="nl-badge nodoi">No DOI</span>'+docTypeBadge;
-    const pdfBtn = (section === 'free' && p.pdf)
-      ? '<button class="nl-pdf-btn" onclick="window.open(\''+p.pdf.replace(/'/g,'&#39;')+'\',\'_blank\')">Open PDF \u2197</button>'
-      : '';
+    const pdfBtn = '';
     const viewBtn = activeDoi
       ? '<button class="nl-view-btn" onclick="loadFromList(\''+activeDoi.replace(/'/g,'&#39;')+'\',\''+activePdf.replace(/'/g,'&#39;')+'\',\''+type+'\')">View Paper \u2192</button>'
       : '';
