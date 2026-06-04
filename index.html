@@ -972,6 +972,7 @@ let nlSort={ refs:'year-desc', cites:'year-desc' };
 let navHistory=[], currentRP='';
 const oaCache = new Map();
 const _checkedTitles = new Set();
+const _verifiedDois = new Set();
 let uwCallsToday = 0;
 let uwCallDate = new Date().toDateString();
 const $=id=>document.getElementById(id);
@@ -2000,6 +2001,8 @@ function renderList(type, items, filter, sort) {
     const uwChecks = allWithDoi.slice(0, 50).map((item, idx) =>
       new Promise(resolve => setTimeout(async () => {
         if (uwCallsToday >= 80000) return resolve();
+        if (_verifiedDois.has(item.doi)) return resolve();
+        _verifiedDois.add(item.doi);
         uwCallsToday++;
         try {
           const res = await fetch('https://api.unpaywall.org/v2/'+item.doi+'?email=hello@paprdoor.org');
@@ -2154,6 +2157,7 @@ function loadPaper(paper, skipHistory) {
   if (!skipHistory && cp) navHistory.push({ paper: cp, networkType: currentRP });
   cp = paper;
   _checkedTitles.clear();
+  _verifiedDois.clear();
   renderLeft(paper);
   showPage('pg-paper');
   closeRP();
