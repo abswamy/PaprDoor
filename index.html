@@ -2357,6 +2357,11 @@ function renderLeft(p) {
       <div>
         <div class="ab-title nf">No free version found</div>
         <div class="ab-sub">Try Reference Excavator below or contact the author directly</div>
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <a class="nl-direct-btn" href="https://scholar.google.com/scholar?q=${encodeURIComponent((p.title||'').substring(0,80))}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">GS ↗</a>
+          <a class="nl-direct-btn" href="https://www.semanticscholar.org/search?q=${encodeURIComponent((p.title||'').substring(0,80))}&sort=Relevance" target="_blank" rel="noopener noreferrer" style="text-decoration:none">SS ↗</a>
+          <a class="nl-direct-btn" href="https://www.researchgate.net/search?q=${encodeURIComponent((p.title||'').substring(0,80))}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">RG ↗</a>
+        </div>
       </div>
     </div>`}
     <div class="slbl">Paper</div>
