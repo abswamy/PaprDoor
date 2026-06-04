@@ -1356,56 +1356,6 @@ async function fetchDOI(doi) {
       .filter(r => r.title);
     refs = mergeByDoi(refs, crRefs);
 
-    // Enrich no-DOI refs via single OpenAlex batch call
-    const noDOIrefs = refs.filter(r => {
-      if (r.doi || !r.title) return false;
-      const t = r.title;
-      if (t.length < 15 || t.length > 150) return false;
-      if (t.startsWith('http')) return false;
-      if (/\(\d{4}\)/.test(t)) return false;
-      if (/^\w+,\s+\w\./.test(t)) return false;
-      if (/\bIn\s+[A-Z]/.test(t)) return false;
-      return true;
-    }).slice(0, 10);
-
-    if (noDOIrefs.length > 0) {
-      try {
-        const titleFilter = noDOIrefs.map(r => {
-          const clean = r.title.substring(0, 60)
-            .replace(/['"()&,]/g, ' ')
-            .replace(/\s+/g, ' ').trim();
-          return 'title.search:' + encodeURIComponent('"' + clean + '"');
-        }).join('|');
-        const enrichRes = await fetch(
-          'https://api.openalex.org/works?filter=' + titleFilter +
-          '&select=doi,title,open_access,best_oa_location&per_page=10' +
-          '&mailto=hello@paprdoor.org'
-        );
-        if (enrichRes.ok) {
-          const enrichData = await enrichRes.json();
-          (enrichData.results || []).forEach(work => {
-            if (!work.doi) return;
-            const workDoi = work.doi.replace('https://doi.org/', '');
-            const workTitle = (work.title || '')
-              .toLowerCase().replace(/[^a-z0-9]/g, '');
-            const match = noDOIrefs.find(r => {
-              const rt = r.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-              return rt.length > 15 && workTitle.includes(rt.substring(0, 15));
-            });
-            if (!match) return;
-            match.doi = workDoi;
-            match.source = 'OpenAlex';
-            const pdf = work.best_oa_location?.url_for_pdf ||
-              (work.open_access?.is_oa ? work.open_access.oa_url : null);
-            if (work.open_access?.is_oa && pdf) {
-              match.free = true;
-              match.pdf = pdf;
-            }
-          });
-        }
-      } catch(e) {}
-    }
-
     // Remove no-doi duplicates where same paper already exists with a doi
     const titlesWithDoi = new Set(
       refs.filter(r => r.doi).map(r =>
@@ -1981,15 +1931,35 @@ function renderList(type, items, filter, sort) {
 
   container.innerHTML = html;
 
-  // Check OpenAlex for each Other Sources card
+  // Check OpenAlex for each Other Sources card — staggered to avoid rate limits
   setTimeout(() => {
-    container.querySelectorAll('.nl-card[data-check-title]').forEach(card => {
-      checkOtherSources(
-        card,
-        decodeURIComponent(card.dataset.checkTitle || ''),
-        decodeURIComponent(card.dataset.checkAuthors || ''),
-        card.dataset.checkYear || ''
-      );
+    const otherCards = Array.from(
+      container.querySelectorAll('.nl-card[data-check-title]:not([data-checked="true"])')
+    );
+    if (otherCards.length === 0) return;
+    let enriched = false;
+    const checks = otherCards.map((card, idx) =>
+      new Promise(resolve => setTimeout(async () => {
+        await checkOtherSources(
+          card,
+          decodeURIComponent(card.dataset.checkTitle || ''),
+          decodeURIComponent(card.dataset.checkAuthors || ''),
+          card.dataset.checkYear || ''
+        );
+        const matchItem = (type==='refs'?(cp.refs||[]):(cp.cites||[]))
+          .find(r => r.doi &&
+            (r.title||'').trim().toLowerCase() ===
+            decodeURIComponent(card.dataset.checkTitle||'').trim().toLowerCase()
+          );
+        if (matchItem?.doi) enriched = true;
+        resolve();
+      }, idx * 1200))
+    );
+    Promise.allSettled(checks).then(() => {
+      if (!enriched) return;
+      const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
+      const curFilter = activeBtn ? activeBtn.dataset.filter : 'all';
+      renderList(type, type==='refs'?(cp.refs||[]):(cp.cites||[]), curFilter, nlSort[type]||'year-desc');
     });
   }, 200);
 
@@ -2076,98 +2046,73 @@ function openPreviewPane(pdfUrl, title, item) {
 
 async function checkOtherSources(cardEl, title, authors, year) {
   if (!cardEl || !title) return;
-  const titleQ = encodeURIComponent(title);
+  if (cardEl.dataset.checked === 'true') return;
+  cardEl.dataset.checked = 'true';
+  const titleQ = encodeURIComponent(title.substring(0, 80));
   try {
-    const [oaRes, ssRes, epRes] = await Promise.allSettled([
-      fetch('https://api.openalex.org/works?search=' + titleQ
-        + '&select=doi,open_access,best_oa_location&per_page=1&mailto=hello@paprdoor.org'),
-      fetch('https://api.semanticscholar.org/graph/v1/paper/search?query=' + titleQ
-        + '&fields=title,externalIds,openAccessPdf&limit=1'),
-      fetch('https://www.ebi.ac.uk/europepmc/webservices/rest/search?query='
-        + encodeURIComponent('TITLE:"' + title + '"')
-        + '&format=json&resultType=core&pageSize=1')
-    ]);
-
-    let pdfUrl = null;
-    let foundDoi = null;
-
-    if (oaRes.status === 'fulfilled') {
-      const data = await oaRes.value.json();
-      const work = data.results?.[0];
-      if (work) {
-        const url = work.best_oa_location?.url_for_pdf || work.open_access?.oa_url;
-        if (url) pdfUrl = url;
-        if (work.doi) foundDoi = work.doi.replace('https://doi.org/', '');
+    const res = await fetch(
+      'https://api.openalex.org/works?search=' + titleQ +
+      '&select=doi,title,open_access,best_oa_location&per_page=1' +
+      '&mailto=hello@paprdoor.org'
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const work = data.results?.[0];
+    if (!work) return;
+    const workTitle = (work.title||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const queryTitle = title.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,20);
+    if (queryTitle.length < 8 || !workTitle.includes(queryTitle.substring(0,8))) return;
+    const foundDoi = work.doi?.replace('https://doi.org/','') || null;
+    const pdfUrl = work.best_oa_location?.url_for_pdf ||
+      (work.open_access?.is_oa ? work.open_access.oa_url : null) || null;
+    if (!foundDoi && !pdfUrl) return;
+    const type = cardEl.closest('[id^="nl-"]')?.id?.replace('nl-','') || 'refs';
+    const itemList = type === 'refs' ? (cp.refs||[]) : (cp.cites||[]);
+    const matchItem = itemList.find(r =>
+      (r.title||'').trim().toLowerCase() === title.trim().toLowerCase()
+    );
+    if (matchItem) {
+      if (foundDoi) { matchItem.doi = foundDoi; matchItem.source = 'OpenAlex'; }
+      if (pdfUrl && work.open_access?.is_oa) {
+        matchItem.free = true;
+        matchItem.pdf = pdfUrl;
+        matchItem._foundPdf = pdfUrl;
       }
     }
-
-    if (!pdfUrl && ssRes.status === 'fulfilled') {
-      const data = await ssRes.value.json();
-      const paper = data.data?.[0];
-      if (paper?.openAccessPdf?.url) {
-        pdfUrl = paper.openAccessPdf.url;
-        foundDoi = paper.externalIds?.DOI || foundDoi;
+    if (pdfUrl && work.open_access?.is_oa) {
+      cardEl.style.borderLeft = '3px solid var(--green)';
+      const footer = cardEl.querySelector('.nl-footer');
+      if (footer) {
+        const badge = footer.querySelector('.nl-badge');
+        if (badge) {
+          badge.className = 'nl-badge free';
+          badge.textContent = '\u2713 Free \u00b7 OpenAlex';
+        }
       }
-    }
-
-    if (!pdfUrl && epRes.status === 'fulfilled') {
-      const data = await epRes.value.json();
-      const r = data.resultList?.result?.[0];
-      if (r?.isOpenAccess === 'Y' && r?.pmcid) {
-        pdfUrl = 'https://europepmc.org/articles/' + r.pmcid + '?pdf=render';
-        foundDoi = r.doi || foundDoi;
+      const act = cardEl.querySelector('.nl-action');
+      if (act && !act.querySelector('.nl-view-btn')) {
+        const vb = document.createElement('button');
+        vb.className = 'nl-view-btn';
+        vb.textContent = 'View Paper \u2192';
+        vb.onclick = e => {
+          e.stopPropagation();
+          if (foundDoi) loadFromList(foundDoi, pdfUrl, type);
+          else openUrl(pdfUrl);
+        };
+        act.insertBefore(vb, act.firstChild);
       }
-    }
-
-    if (pdfUrl || foundDoi) {
-      const itemList = cp ? ((cp.refs||[]).concat(cp.cites||[])) : [];
-      const matchItem = itemList.find(r =>
-        !r.doi &&
-        (r.title||'').trim().toLowerCase() === title.trim().toLowerCase()
-      );
-      if (matchItem) {
-        if (foundDoi) {
-          matchItem.doi = foundDoi;
-          matchItem.source = 'OpenAlex';
-          matchItem._foundPdf = null;
-          matchItem._foundDoi = null;
-        }
-        if (pdfUrl) {
-          matchItem.free = true;
-          matchItem.pdf = pdfUrl;
-          if (!foundDoi) matchItem._foundPdf = pdfUrl;
-        }
-        // Re-render to move paper to correct section
-        const rpType = document.querySelector('#rps-refs')?.classList.contains('active') ? 'refs' : 'cites';
-        const activeBtn = document.querySelector('#rps-'+rpType+' .nl-ftab.active');
-        const curFilter = activeBtn ? activeBtn.dataset.filter : 'all';
-        const allItems2 = rpType === 'refs' ? (cp.refs||[]) : (cp.cites||[]);
-        renderList(rpType, allItems2, curFilter, nlSort[rpType]||'year-desc');
-      } else {
-        // No item match — just update DOM badge
-        cardEl.style.borderLeft = '3px solid var(--green)';
-        const footer = cardEl.querySelector('.nl-footer');
-        if (footer) {
-          const badge = footer.querySelector('.nl-badge');
-          if (badge) { badge.className = 'nl-badge free'; badge.textContent = '✓ Free version found'; }
-        }
-        const act = cardEl.querySelector('.nl-action');
-        if (act && !act.querySelector('.nl-view-btn')) {
-          const vb = document.createElement('button');
-          vb.className = 'nl-view-btn';
-          vb.textContent = 'View Paper →';
-          vb.onclick = e => {
-            e.stopPropagation();
-            if (foundDoi) loadFromList(foundDoi, pdfUrl);
-            else openUrl(pdfUrl);
-          };
-          act.insertBefore(vb, act.firstChild);
-        }
+    } else if (foundDoi) {
+      const act = cardEl.querySelector('.nl-action');
+      if (act && !act.querySelector('.nl-view-btn')) {
+        const vb = document.createElement('button');
+        vb.className = 'nl-view-btn';
+        vb.textContent = 'View Paper \u2192';
+        vb.onclick = e => { e.stopPropagation(); loadFromList(foundDoi, '', type); };
+        act.insertBefore(vb, act.firstChild);
       }
     }
   } catch(e) {}
 }
-
 function loadPaper(paper, skipHistory) {
   if (!skipHistory && cp) navHistory.push({ paper: cp, networkType: currentRP });
   cp = paper;
