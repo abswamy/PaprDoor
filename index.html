@@ -1798,6 +1798,10 @@ function renderList(type, items, filter, sort) {
   const paid  = sorted.filter(p => !(p.free && p.pdf) && p.doi);
   const other = sorted.filter(p => !p.doi);
 
+  const freeTabBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="free"]');
+  const paidTabBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="paid"]');
+  if (freeTabBtn) freeTabBtn.textContent = 'Free Access' + (free.length > 0 ? ' ('+free.length+')' : '');
+  if (paidTabBtn) paidTabBtn.textContent = 'Paywalled' + (paid.length > 0 ? ' ('+paid.length+')' : '');
 
   const esc = s => (s || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
 
