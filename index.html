@@ -2283,50 +2283,26 @@ function renderPDF(p) {
           </button>
         </div>
       </div>`;
-    setTimeout(() => {
-      const iframe = $('pdfembed'), fb = $('pdffb');
-      if (!iframe || !fb) return;
-      let settled = false;
-      const showFallback = () => {
-        if (settled) return;
-        settled = true;
-        showPdfFallback();
-      };
-      const blockTimer = setTimeout(() => {
-        const iframe = document.getElementById('pdfembed');
-        if (!iframe) return;
-        try {
-          const doc = iframe.contentDocument || iframe.contentWindow?.document;
-          if (!doc || doc.title === '' || doc.body?.innerHTML?.trim() === '') {
-            showFallback();
-          }
-        } catch(e) {
-          showFallback();
-        }
-      }, 800);
-      iframe.onerror = () => { clearTimeout(blockTimer); showFallback(); };
-      iframe.onload = function() {
-        clearTimeout(blockTimer);
+    // Hide iframe immediately if Chrome blocks it
+    // The top "Open PDF in New Tab" button is the primary action
+    const embedEl = $('pdfembed');
+    if (embedEl) {
+      embedEl.onload = function() {
         try {
           const loc = this.contentWindow?.location?.href || '';
           if (loc.startsWith('chrome-error') ||
-              loc.startsWith('about:') ||
-              loc === 'about:blank') {
-            showFallback();
-            return;
-          }
-          const doc = this.contentDocument;
-          if (!doc || doc.title === '' ||
-              doc.title.toLowerCase().includes('error') ||
-              doc.title.toLowerCase().includes('blocked') ||
-              doc.body?.innerHTML?.trim() === '') {
-            showFallback();
+              loc.startsWith('about:')) {
+            this.style.display = 'none';
           }
         } catch(e) {
-          // Cross-origin: PDF loaded fine — can't inspect content, leave iframe visible
+          // Cross-origin block — hide the broken iframe
+          this.style.display = 'none';
         }
       };
-    }, 150);
+      embedEl.onerror = function() {
+        this.style.display = 'none';
+      };
+    }
   } else {
     w.innerHTML = `<div class="pdf-fb">
       <div class="pdf-fb-icon"><svg width="26" height="26" viewBox="0 0 26 26" fill="none">
