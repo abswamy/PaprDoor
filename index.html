@@ -2293,8 +2293,7 @@ function renderPDF(p) {
             showFallback();
           }
         } catch(e) {
-          // Cross-origin block — show fallback immediately
-          showFallback();
+          // Cross-origin: PDF loaded fine — can't inspect content, leave iframe visible
         }
       };
     }, 150);
