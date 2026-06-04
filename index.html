@@ -1400,16 +1400,6 @@ async function fetchDOI(doi) {
       })
     );
 
-    console.log('CITATIONS DEBUG:', {
-      doi: cleanDoi,
-      ssStatus: citRawRes.status,
-      ssOK: citRawRes.status === 'fulfilled' && citRawRes.value?.ok,
-      ocStatus: ocRes.status,
-      ocOK: ocRes.status === 'fulfilled' && ocRes.value?.ok,
-      finalCites: cites.length,
-      sampleTitles: cites.slice(0,3).map(c => c.title?.substring(0,50))
-    });
-
     return {
       doi:        metaDoi,
       title,
