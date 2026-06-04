@@ -2271,20 +2271,29 @@ function renderPDF(p) {
             showFallback();
           }
         } catch(e) {}
-      }, 1500);
+      }, 800);
       iframe.onerror = () => { clearTimeout(blockTimer); showFallback(); };
       iframe.onload = function() {
         clearTimeout(blockTimer);
         try {
+          const loc = this.contentWindow?.location?.href || '';
+          if (loc.startsWith('chrome-error') ||
+              loc.startsWith('about:') ||
+              loc === 'about:blank') {
+            showFallback();
+            return;
+          }
           const doc = this.contentDocument;
-          if (doc && (
-            doc.title.includes('blocked') ||
-            doc.body?.innerHTML?.includes('blocked') ||
-            doc.body?.innerHTML?.trim() === ''
-          )) {
+          if (!doc || doc.title === '' ||
+              doc.title.toLowerCase().includes('error') ||
+              doc.title.toLowerCase().includes('blocked') ||
+              doc.body?.innerHTML?.trim() === '') {
             showFallback();
           }
-        } catch(e) {}
+        } catch(e) {
+          // Cross-origin block — show fallback immediately
+          showFallback();
+        }
       };
     }, 150);
   } else {
