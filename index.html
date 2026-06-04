@@ -1230,7 +1230,7 @@ async function fetchDOI(doi) {
       fetch(`https://api.openalex.org/works/doi:${cleanDoi}`),
       fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${cleanDoi}?fields=title,authors,year,journal,externalIds,references.title,references.authors,references.year,references.externalIds,references.openAccessPdf,references.journal`),
       fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${cleanDoi}?fields=citations.title,citations.authors,citations.year,citations.externalIds,citations.openAccessPdf,citations.journal`),
-      fetch(`https://opencitations.net/index/api/v2/citations/${encodeURIComponent(cleanDoi)}`),
+      fetch(`https://opencitations.net/index/coci/api/v1/citations/${encodeURIComponent(cleanDoi)}`),
       fetch(`https://api.unpaywall.org/v2/${cleanDoi}?email=hello@paprdoor.org`),
       fetchEuropePMC(cleanDoi)
     ]);
@@ -2041,6 +2041,17 @@ function renderList(type, items, filter, sort) {
       const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
       const curFilter = activeBtn ? activeBtn.dataset.filter : 'all';
       renderList(type, items, curFilter, sort);
+
+      const allItems2 = type==='refs'?(cp.refs||[]):(cp.cites||[]);
+      const freeCount2 = allItems2.filter(p => p.free && p.pdf).length;
+      const paidCount2 = allItems2.filter(p => !(p.free&&p.pdf) && p.doi).length;
+      const nb2 = document.getElementById(type==='refs' ? 'nb-refs' : 'nb-cites');
+      if (nb2) {
+        const fc2 = nb2.querySelector('.nbc.free');
+        const pc2 = nb2.querySelector('.nbc.paid');
+        if (fc2) fc2.textContent = '\u2713 ' + freeCount2 + ' free';
+        if (pc2) pc2.textContent = '\u2298 ' + paidCount2 + ' paid';
+      }
 
       if (freeCount > 0) toast('\u2713 '+freeCount+' free papers found');
     });
