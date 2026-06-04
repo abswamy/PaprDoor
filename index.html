@@ -994,6 +994,35 @@ embed.pdfframe { flex: 1; border: none; width: 100%; min-height: 300px; }
         </div>
         <div class="netlist" id="nl-cites"></div>
       </div>
+      <div class="rpstate" id="rps-other-doors">
+        <div style="padding:24px">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px">This paper is paywalled</div>
+          <div style="font-size:12px;color:var(--ink-faint);margin-bottom:20px;line-height:1.6">No free legal version was found. Try these doors — one of them might have a copy available.</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <a id="od-gs" href="#" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1.5px solid var(--rule);border-radius:var(--r);text-decoration:none;color:var(--navy);font-size:13px;font-weight:500;transition:all .2s;background:var(--parch)" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="this.style.borderColor='var(--rule)'">
+              <span style="font-size:16px">🎓</span>
+              <div><div style="font-weight:600">Google Scholar</div><div style="font-size:11px;color:var(--ink-faint)">Search for free versions</div></div>
+              <span style="margin-left:auto;font-size:11px;color:var(--ink-faint)">↗</span>
+            </a>
+            <a id="od-rg" href="#" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1.5px solid var(--rule);border-radius:var(--r);text-decoration:none;color:var(--navy);font-size:13px;font-weight:500;transition:all .2s;background:var(--parch)" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="this.style.borderColor='var(--rule)'">
+              <span style="font-size:16px">🔬</span>
+              <div><div style="font-weight:600">ResearchGate</div><div style="font-size:11px;color:var(--ink-faint)">Authors often share here</div></div>
+              <span style="margin-left:auto;font-size:11px;color:var(--ink-faint)">↗</span>
+            </a>
+            <a id="od-ss" href="#" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1.5px solid var(--rule);border-radius:var(--r);text-decoration:none;color:var(--navy);font-size:13px;font-weight:500;transition:all .2s;background:var(--parch)" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="this.style.borderColor='var(--rule)'">
+              <span style="font-size:16px">🤖</span>
+              <div><div style="font-weight:600">Semantic Scholar</div><div style="font-size:11px;color:var(--ink-faint)">AI-powered paper search</div></div>
+              <span style="margin-left:auto;font-size:11px;color:var(--ink-faint)">↗</span>
+            </a>
+            <a id="od-unpaywall" href="#" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1.5px solid var(--rule);border-radius:var(--r);text-decoration:none;color:var(--navy);font-size:13px;font-weight:500;transition:all .2s;background:var(--parch)" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="this.style.borderColor='var(--rule)'">
+              <span style="font-size:16px">🔓</span>
+              <div><div style="font-weight:600">Unpaywall</div><div style="font-size:11px;color:var(--ink-faint)">Legal open access finder</div></div>
+              <span style="margin-left:auto;font-size:11px;color:var(--ink-faint)">↗</span>
+            </a>
+          </div>
+          <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--rule);font-size:11px;color:var(--ink-faint);line-height:1.6">Or use Author Connect on the left to email the author directly — authors can legally send you a copy.</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -2317,6 +2346,16 @@ function loadPaper(paper, skipHistory) {
   cp = paper;
   _checkedTitles.clear();
   _verifiedDois.clear();
+  // Update Other Doors links with paper title
+  const _title = encodeURIComponent((paper.title||'').substring(0,80));
+  const _gs = $('od-gs');
+  const _rg = $('od-rg');
+  const _ss = $('od-ss');
+  const _up = $('od-unpaywall');
+  if (_gs) _gs.href = 'https://scholar.google.com/scholar?q=' + _title;
+  if (_rg) _rg.href = 'https://www.researchgate.net/search?q=' + _title;
+  if (_ss) _ss.href = 'https://www.semanticscholar.org/search?q=' + _title + '&sort=Relevance';
+  if (_up) _up.href = 'https://unpaywall.org/' + (paper.doi||'');
   renderLeft(paper);
   showPage('pg-paper');
   closeRP();
@@ -2350,6 +2389,7 @@ function renderLeft(p) {
         <div style="display:flex;gap:8px;flex-shrink:0">
           <button class="btn-action btn-download" onclick="event.stopPropagation();openUrl(this.dataset.pdf)" data-pdf="${p.pdf||''}">↓ Download PDF</button>
           <button class="btn-action btn-preview" id="pt-btn" onclick="openRP('preview')">⊞ Preview</button>
+          <button class="btn-secondary" onclick="openRP('other-doors')" style="display:flex;align-items:center;gap:6px;padding:8px 14px;font-size:12px;font-weight:600;border-radius:var(--r);border:1.5px solid var(--rule);background:var(--parch);cursor:pointer;color:var(--navy);transition:all .2s" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="this.style.borderColor='var(--rule)'">🚪 Explore Other Doors</button>
         </div>
       </div>
     </div>` : `<div class="ab nf">
@@ -2409,11 +2449,11 @@ function openRP(state){$('lpane').classList.add('rp-open');$('rpane').classList.
 function closeRP(){currentRP='';$('lpane').classList.remove('rp-open');$('lpane').classList.remove('resized');$('lpane').style.width='';$('rpane').classList.remove('open');const pt=$('pt-btn');if(pt)pt.classList.remove('active');['nb-refs','nb-cites'].forEach(id=>{const e=$(id);if(e)e.classList.remove('active')});const sub=$('ab-subtitle');if(sub)sub.style.display='';}
 function switchRP(state){
   currentRP=state;
-  ['preview','refs','cites'].forEach(s=>{
+  ['preview','refs','cites','other-doors'].forEach(s=>{
     const el=$('rps-'+s);if(el)el.classList.toggle('active',s===state);
     const btn=$('rbtn-'+s);if(btn)btn.classList.toggle('act',s===state);
   });
-  const labels={preview:'Paper Preview',refs:'References',cites:'Citations'};
+  const labels={preview:'Paper Preview',refs:'References',cites:'Citations','other-doors':'Other Doors'};
   $('rpl').textContent=labels[state];
   ['nb-refs','nb-cites'].forEach(id=>{const e=$(id);if(e)e.classList.remove('active')});
   if(state==='preview'){
