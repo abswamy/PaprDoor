@@ -1712,7 +1712,7 @@ async function searchKeywords(page) {
 
     allResults = merged;
     const displayQ = rawKw;
-    renderResults(displayQ, merged);
+    renderResults(displayQ, merged, currentPage, totalResults);
 
   } catch(e) {
     toast('Search failed. Please try again.');
