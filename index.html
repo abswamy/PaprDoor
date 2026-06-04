@@ -1547,7 +1547,7 @@ async function searchKeywords() {
 
   loading(true);
   try {
-    let oaUrl = 'https://api.openalex.org/works?search='
+    let oaUrl = 'https://api.openalex.org/works?filter=title.search:'
       + encodeURIComponent(kw)
       + '&per_page=10&mailto=hello@paprdoor.org'
       + '&select=id,doi,title,authorships,publication_year,'
