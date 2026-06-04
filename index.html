@@ -2553,8 +2553,12 @@ function renderPDF(p) {
             doc?.body?.innerHTML?.trim() === '') {
           showPdfFallback();
         }
-      } catch(e) {}
-    }, 4000);
+      } catch(e) {
+        // Cross-origin means Google Docs Viewer loaded something — check height
+        const rect = iframe.getBoundingClientRect();
+        if (rect.height < 100) showPdfFallback();
+      }
+    }, 2500);
   } else {
     w.innerHTML = `<div class="pdf-fb">
       <div class="pdf-fb-icon"><svg width="26" height="26" viewBox="0 0 26 26" fill="none">
