@@ -1536,26 +1536,52 @@ function searchByTitleFallback(query) {
   if (kw) { kw.value = query; kw.focus(); }
 }
 async function searchKeywords() {
-  const kw = $('kw-input')?.value.trim();
-  if (!kw) return;
+  const rawKw = $('kw-input')?.value.trim();
+  if (!rawKw) return;
   navHistory = [];
 
-  const author = $('auth-input')?.value.trim();
-  const yrFrom = $('yr-from')?.value;
-  const yrTo   = $('yr-to')?.value;
-  const access = $('access-sel')?.value;
+  // Slash syntax: keywords / place / year
+  // Works with or without spaces around /
+  const parts = rawKw.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
+  let kw        = parts[0] || rawKw;
+  let author    = $('auth-input')?.value.trim();
+  let yrFrom    = $('yr-from')?.value;
+  let yrTo      = $('yr-to')?.value;
+  const access  = $('access-sel')?.value;
+
+  // Parse remaining slash parts — year or place
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i].trim();
+    const rangeMatch  = part.match(/^((19|20)\d{2})\s*[-–]\s*((19|20)\d{2})$/);
+    const singleMatch = part.match(/^(19|20)\d{2}$/);
+    if (rangeMatch) {
+      yrFrom = rangeMatch[1];
+      yrTo   = rangeMatch[3];
+    } else if (singleMatch) {
+      yrFrom = part;
+      yrTo   = part;
+    } else {
+      // Treat as place — append to keyword
+      kw = kw + ' ' + part;
+    }
+  }
 
   loading(true);
   try {
-    let oaUrl = 'https://api.openalex.org/works?filter=default.search:'
-      + encodeURIComponent(kw)
-      + '&per_page=10&mailto=hello@paprdoor.org'
+    // Build filters array
+    const filters = ['default.search:' + encodeURIComponent(kw)];
+    if (author) filters.push('author.display_name.search:' + encodeURIComponent(author));
+    if (yrFrom && yrTo) filters.push('publication_year:' + yrFrom + '-' + yrTo);
+    else if (yrFrom) filters.push('publication_year:>' + (parseInt(yrFrom)-1));
+    else if (yrTo)   filters.push('publication_year:<' + (parseInt(yrTo)+1));
+    if (access === 'oa') filters.push('is_oa:true');
+
+    let oaUrl = 'https://api.openalex.org/works?filter='
+      + filters.join(',')
+      + '&per_page=20&mailto=hello@paprdoor.org'
       + '&select=id,doi,title,authorships,publication_year,'
       + 'primary_location,open_access,abstract_inverted_index,'
       + 'best_oa_location';
-    if (author) oaUrl += '&filter=author.display_name.search:' + encodeURIComponent(author);
-    if (yrFrom && yrTo) oaUrl += '&filter=publication_year:' + yrFrom + '-' + yrTo;
-    if (access === 'oa') oaUrl += '&filter=is_oa:true';
 
     const [oaRes, ssRes, epRes] = await Promise.allSettled([
       fetch(oaUrl),
@@ -1677,7 +1703,8 @@ async function searchKeywords() {
     }));
 
     allResults = merged;
-    renderResults(kw, merged);
+    const displayQ = rawKw;
+    renderResults(displayQ, merged);
 
   } catch(e) {
     toast('Search failed. Please try again.');
