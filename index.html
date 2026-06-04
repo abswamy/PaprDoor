@@ -1772,7 +1772,10 @@ function updateCardBadge(cardEl, free, pdf) {
   const pdfBtn = cardEl.querySelector('.nl-pdf-btn');
   if (pdfBtn) {
     pdfBtn.style.display = free && pdf ? 'inline-flex' : 'none';
-    if (free && pdf) pdfBtn.onclick = () => window.open(pdf, '_blank');
+    if (free && pdf) {
+      pdfBtn.dataset.pdf = pdf;
+      pdfBtn.onclick = e => { e.stopPropagation(); window.open(pdfBtn.dataset.pdf, '_blank'); };
+    }
   }
 }
 
@@ -2094,7 +2097,7 @@ function renderLeft(p) {
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0">
-          <button class="btn-action btn-download" onclick="window.open(cp?.pdf,'_blank')">↓ Download PDF</button>
+          <button class="btn-action btn-download" onclick="event.stopPropagation();window.open(this.dataset.pdf,'_blank')" data-pdf="${p.pdf||''}">↓ Download PDF</button>
           <button class="btn-action btn-preview" id="pt-btn" onclick="openRP('preview')">⊞ Preview</button>
         </div>
       </div>
@@ -2194,7 +2197,7 @@ function renderPDF(p) {
         <span style="font-size:12px;color:var(--green);font-weight:600">✓ Open Access</span>
         <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <button class="btn-action btn-download" style="padding:7px 14px;font-size:12px"
-            onclick="window.open('${url}','_blank')">
+            onclick="event.stopPropagation();window.open(this.dataset.pdf,'_blank')" data-pdf="${url}">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0">
               <path d="M3 3h10v10H3z" stroke="currentColor" stroke-width="1.3" rx="1.5"/>
               <path d="M6.5 6.5L9.5 9.5M9.5 6.5H6.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
@@ -2220,7 +2223,7 @@ function renderPDF(p) {
           <p style="font-size:13px;color:var(--ink-soft);max-width:275px;line-height:1.75;margin-bottom:20px">
             This publisher doesn't allow in-app preview. The paper is free — open it directly in your browser.
           </p>
-          <button class="btn-action btn-download" onclick="window.open('${url}','_blank')" style="padding:10px 22px;font-size:13px">
+          <button class="btn-action btn-download" onclick="event.stopPropagation();window.open(this.dataset.pdf,'_blank')" data-pdf="${url}" style="padding:10px 22px;font-size:13px">
             Open Free PDF ↗
           </button>
         </div>
