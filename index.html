@@ -1100,32 +1100,62 @@ function getBestPdfUrl(unpaywallData) {
   if (!unpaywallData || !unpaywallData.is_oa) return null;
   const locations = unpaywallData.oa_locations || [];
 
-  // Priority 1: direct PDF from known embeddable repositories
-  const directPdf = locations.find(loc =>
-    loc.url_for_pdf && (
-      loc.url_for_pdf.includes('ncbi.nlm.nih.gov') ||
-      loc.url_for_pdf.includes('arxiv.org') ||
-      loc.url_for_pdf.includes('biorxiv.org') ||
-      loc.url_for_pdf.includes('medrxiv.org') ||
-      loc.url_for_pdf.includes('europepmc.org') ||
-      loc.url_for_pdf.includes('zenodo.org') ||
-      loc.url_for_pdf.endsWith('.pdf')
-    )
-  );
-  if (directPdf) return directPdf.url_for_pdf;
+  // Score each location — higher = better for iframe display
+  const scored = locations
+    .filter(loc => loc.url_for_pdf)
+    .map(loc => {
+      const url = loc.url_for_pdf;
+      let score = 0;
 
-  // Priority 2: any URL ending in .pdf
-  const anyPdf = locations.find(loc =>
-    loc.url_for_pdf && loc.url_for_pdf.endsWith('.pdf')
-  );
-  if (anyPdf) return anyPdf.url_for_pdf;
+      // Best: PMC — always works in iframe
+      if (url.includes('ncbi.nlm.nih.gov') ||
+          url.includes('europepmc.org')) score = 100;
 
-  // Priority 3: any url_for_pdf present
-  const anyLocation = locations.find(loc => loc.url_for_pdf);
-  if (anyLocation) return anyLocation.url_for_pdf;
+      // Good: institutional repositories, zenodo, figshare
+      else if (url.includes('zenodo.org')) score = 90;
+      else if (url.includes('figshare.com')) score = 85;
+      else if (url.includes('biorxiv.org') ||
+               url.includes('medrxiv.org')) score = 80;
 
-  // Priority 4: best_oa_location fallback
-  return unpaywallData.best_oa_location?.url_for_pdf || null;
+      // arXiv — works but needs .pdf suffix
+      else if (url.includes('arxiv.org')) score = 75;
+
+      // Direct .pdf links from any source
+      else if (url.endsWith('.pdf')) score = 70;
+
+      // Publisher OA pages — often blocked
+      else if (loc.host_type === 'publisher') score = 10;
+
+      // Everything else
+      else score = 40;
+
+      return { url, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  if (!scored.length) {
+    return unpaywallData.best_oa_location?.url_for_pdf || null;
+  }
+
+  let bestUrl = scored[0].url;
+
+  // Fix arXiv URLs — append .pdf for direct download
+  if (bestUrl.includes('arxiv.org/pdf/') &&
+      !bestUrl.endsWith('.pdf')) {
+    bestUrl = bestUrl + '.pdf';
+  }
+  if (bestUrl.includes('arxiv.org/abs/')) {
+    bestUrl = bestUrl.replace('/abs/', '/pdf/') + '.pdf';
+  }
+
+  // Fix bioRxiv/medRxiv — ensure .full.pdf format
+  if ((bestUrl.includes('biorxiv.org') ||
+       bestUrl.includes('medrxiv.org')) &&
+      !bestUrl.endsWith('.pdf')) {
+    bestUrl = bestUrl + '.full.pdf';
+  }
+
+  return bestUrl;
 }
 
 function isTrulyFree(uwData, oaUrl) {
