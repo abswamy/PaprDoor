@@ -869,10 +869,21 @@ embed.pdfframe { flex: 1; border: none; width: 100%; min-height: 300px; }
   <div class="rb">
     <div class="rtr">
       <div class="rt" id="rpt">Search Results</div>
-      <div class="fb">
-        <div class="fbtn active" onclick="filterR('all',this)">All</div>
-        <div class="fbtn" onclick="filterR('oa',this)">Open Access</div>
-        <div class="fbtn" onclick="filterR('paid',this)">Paywalled</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div class="fb">
+          <div class="fbtn active" onclick="filterR('all',this)">All</div>
+          <div class="fbtn" onclick="filterR('oa',this)">Open Access</div>
+          <div class="fbtn" onclick="filterR('paid',this)">Paywalled</div>
+        </div>
+        <select id="r-sort" class="nl-sort" onchange="sortResults(this.value)"
+          style="margin-left:8px">
+          <option value="year-desc">Year ↓ Newest</option>
+          <option value="year-asc">Year ↑ Oldest</option>
+          <option value="title-asc">Title A → Z</option>
+          <option value="title-desc">Title Z → A</option>
+        </select>
+      </div>
+      <div id="alpha-bar" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
       </div>
     </div>
     <div id="rl"></div>
@@ -973,6 +984,8 @@ let navHistory=[], currentRP='';
 const oaCache = new Map();
 const _checkedTitles = new Set();
 const _verifiedDois = new Set();
+let rSort = 'year-desc';
+let rAlpha = '';
 let uwCallsToday = 0;
 let uwCallDate = new Date().toDateString();
 const $=id=>document.getElementById(id);
@@ -1676,6 +1689,11 @@ function renderResults(q, res, page, total) {
     : `${res.length} papers · ${f} free`;
 
   document.querySelectorAll('.fbtn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  rSort = 'year-desc';
+  rAlpha = '';
+  const rs = $('r-sort');
+  if (rs) rs.value = 'year-desc';
+  buildAlphaBar();
   renderCards(res);
 
   // Pagination bar
@@ -1724,11 +1742,68 @@ function renderCards(list) {
   $("rl").innerHTML = list.map(p => `<div class="rc" onclick="handleResultClick('${p.doi}','${(p.title||'').replace(/'/g,"&#39;")}')"><div class="rdot ${p.free ? "oa" : "pd"}"></div><div class="rbdy"><div class="rtl">${p.title}</div><div class="rau">${p.authors}</div><div class="rab">${p.abstract}</div><div class="rmr"><span class="bdg ${p.free ? "oa" : "pd"}">${p.free ? "✓ Open Access" : "⊘ Paywalled"}</span><span class="bdg yr">${p.year}</span><span class="bdg jn">${p.journal}</span><span class="bdg doi">${p.doi || ""}</span></div></div><div class="ract"><button class="bvw">View →</button>${p.free && p.doi ? `<button class="bdl" onclick="event.stopPropagation();openResultPdf('${p.doi}','${p.pdf||''}')">PDF ↓</button>` : ""}</div></div>`).join("");
 }
 function filterR(type, el) {
-  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  const accessMap = { all: 'All papers', oa: 'Open access only', paid: 'Paywalled only' };
-  lastSearch = { ...lastSearch, access: accessMap[type] };
-  searchKeywords(1, lastSearch);
+  document.querySelectorAll('.fb .fbtn')
+    .forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.fb .fbtn').forEach((b, i) => {
+    const types = ['all', 'oa', 'paid'];
+    b.setAttribute('data-filter', types[i]);
+  });
+  applyResultFilters();
+}
+
+function sortResults(val) {
+  rSort = val;
+  applyResultFilters();
+}
+
+function filterAlpha(letter, el) {
+  rAlpha = letter;
+  document.querySelectorAll('#alpha-bar .fbtn')
+    .forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  applyResultFilters();
+}
+
+function applyResultFilters() {
+  const activeFilter = document.querySelector('.fb .fbtn.active');
+  const ftype = activeFilter?.getAttribute('data-filter') || 'all';
+  let list = [...ar];
+
+  // Access filter
+  if (ftype === 'oa') list = list.filter(r => r.free);
+  else if (ftype === 'paid') list = list.filter(r => !r.free);
+
+  // Alpha filter
+  if (rAlpha) {
+    list = list.filter(r =>
+      (r.title||'').trim().toUpperCase().startsWith(rAlpha)
+    );
+  }
+
+  // Sort
+  if (rSort === 'year-desc') list.sort((a,b) => (b.year||0)-(a.year||0));
+  else if (rSort === 'year-asc') list.sort((a,b) => (a.year||0)-(b.year||0));
+  else if (rSort === 'title-asc') list.sort((a,b) => (a.title||'').localeCompare(b.title||''));
+  else if (rSort === 'title-desc') list.sort((a,b) => (b.title||'').localeCompare(a.title||''));
+
+  renderCards(list);
+  $('rmt').textContent = list.length + ' papers · '
+    + list.filter(r=>r.free).length + ' free';
+}
+
+function buildAlphaBar() {
+  const bar = $('alpha-bar');
+  if (!bar) return;
+  bar.innerHTML = '<div class="fbtn active" onclick="filterAlpha(\'\',this)" style="font-size:11px;padding:3px 8px">All</div>';
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(l => {
+    const d = document.createElement('div');
+    d.className = 'fbtn';
+    d.textContent = l;
+    d.style.cssText = 'font-size:11px;padding:3px 8px;min-width:28px;text-align:center';
+    d.onclick = () => filterAlpha(l, d);
+    bar.appendChild(d);
+  });
 }
 function filterList(type, filter) {
   document.querySelectorAll(`#rps-${type} .nl-ftab`).forEach(b => {
