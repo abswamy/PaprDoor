@@ -971,6 +971,7 @@ let lastSearch={}, currentPage=1, totalResults=0;
 let nlSort={ refs:'year-desc', cites:'year-desc' };
 let navHistory=[], currentRP='';
 const oaCache = new Map();
+const _checkedTitles = new Set();
 let uwCallsToday = 0;
 let uwCallDate = new Date().toDateString();
 const $=id=>document.getElementById(id);
@@ -1959,7 +1960,29 @@ function renderList(type, items, filter, sort) {
       if (!enriched) return;
       const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
       const curFilter = activeBtn ? activeBtn.dataset.filter : 'all';
-      renderList(type, type==='refs'?(cp.refs||[]):(cp.cites||[]), curFilter, nlSort[type]||'year-desc');
+      const allItems = type==='refs'?(cp.refs||[]):(cp.cites||[]);
+      const free2  = allItems.filter(p => p.free && p.pdf);
+      const paid2  = allItems.filter(p => !(p.free && p.pdf) && p.doi);
+      const other2 = allItems.filter(p => !p.doi);
+      const freeTabBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="free"]');
+      const paidTabBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="paid"]');
+      if (freeTabBtn) freeTabBtn.textContent = 'Free Access' + (free2.length > 0 ? ' ('+free2.length+')' : '');
+      if (paidTabBtn) paidTabBtn.textContent = 'Paywalled' + (paid2.length > 0 ? ' ('+paid2.length+')' : '');
+      const nb = document.getElementById(type==='refs'?'nb-refs':'nb-cites');
+      if (nb) {
+        const fc = nb.querySelector('.nbc.free');
+        const pc = nb.querySelector('.nbc.paid');
+        if (fc) fc.textContent = '✓ '+free2.length+' free';
+        if (pc) pc.textContent = '⊘ '+paid2.length+' paid';
+      }
+      const container2 = document.getElementById('nl-'+type);
+      if (!container2) return;
+      const showList = curFilter==='free' ? free2 :
+                       curFilter==='paid' ? paid2 :
+                       curFilter==='other' ? other2 : allItems;
+      container2.innerHTML = showList.map(p => makeCard(p, type,
+        curFilter==='other'||!p.doi ? 'other' : p.free&&p.pdf ? 'free' : 'paid'
+      )).join('');
     });
   }, 200);
 
@@ -2046,8 +2069,9 @@ function openPreviewPane(pdfUrl, title, item) {
 
 async function checkOtherSources(cardEl, title, authors, year) {
   if (!cardEl || !title) return;
-  if (cardEl.dataset.checked === 'true') return;
-  cardEl.dataset.checked = 'true';
+  const _tk = (title||'').trim().toLowerCase().substring(0,40);
+  if (_checkedTitles.has(_tk)) return;
+  _checkedTitles.add(_tk);
   const titleQ = encodeURIComponent(title.substring(0, 80));
   try {
     const res = await fetch(
@@ -2116,6 +2140,7 @@ async function checkOtherSources(cardEl, title, authors, year) {
 function loadPaper(paper, skipHistory) {
   if (!skipHistory && cp) navHistory.push({ paper: cp, networkType: currentRP });
   cp = paper;
+  _checkedTitles.clear();
   renderLeft(paper);
   showPage('pg-paper');
   closeRP();
@@ -2254,12 +2279,14 @@ function renderPDF(p) {
   if (!w) return;
   if (p && p.oa && p.pdf) {
     const url = p.pdf;
+    const safeUrl = url && url.startsWith('http') ? url : null;
+    if (!safeUrl) { showPdfFallback(); return; }
     w.innerHTML = `
       <div class="pdfbar" style="flex-shrink:0;gap:10px;align-items:center">
         <span style="font-size:12px;color:var(--green);font-weight:600">✓ Open Access</span>
         <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <button class="btn-action btn-download" style="padding:7px 14px;font-size:12px"
-            onclick="event.stopPropagation();openUrl(this.dataset.pdf)" data-pdf="${url}">
+            onclick="event.stopPropagation();openUrl(this.dataset.pdf)" data-pdf="${safeUrl}">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0">
               <path d="M3 3h10v10H3z" stroke="currentColor" stroke-width="1.3" rx="1.5"/>
               <path d="M6.5 6.5L9.5 9.5M9.5 6.5H6.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
@@ -2270,7 +2297,7 @@ function renderPDF(p) {
         </div>
       </div>
       <iframe
-        src="https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true"
+        src="https://docs.google.com/viewer?url=${encodeURIComponent(safeUrl)}&embedded=true&hl=en"
         id="pdfembed"
         allow="fullscreen"
         style="flex:1;border:none;width:100%;min-height:300px"
@@ -2289,7 +2316,7 @@ function renderPDF(p) {
           <p style="font-size:13px;color:var(--ink-soft);max-width:275px;line-height:1.75;margin-bottom:20px">
             This publisher blocks in-app preview. The paper is free — open it directly.
           </p>
-          <button class="btn-action btn-download" onclick="event.stopPropagation();openUrl(this.dataset.pdf)" data-pdf="${url}" style="padding:10px 22px;font-size:13px">
+          <button class="btn-action btn-download" onclick="event.stopPropagation();openUrl(this.dataset.pdf)" data-pdf="${safeUrl}" style="padding:10px 22px;font-size:13px">
             Open Free PDF ↗
           </button>
         </div>
