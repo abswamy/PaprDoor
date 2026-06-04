@@ -1931,6 +1931,8 @@ function renderList(type, items, filter, sort) {
           if (!match) return;
           match.doi = workDoi;
           match.source = 'OpenAlex';
+          match._foundPdf = null; // clear checkOtherSources result — now has real DOI
+          match._foundDoi = null;
           const pdf = work.best_oa_location?.url_for_pdf ||
             (work.open_access?.is_oa ? work.open_access.oa_url : null) || null;
           if (work.open_access?.is_oa && pdf) {
