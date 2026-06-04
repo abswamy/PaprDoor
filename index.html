@@ -1691,6 +1691,13 @@ function reSearch() {
   if (!q) return;
   const ki = $('kw-input');
   if (ki) ki.value = q;
+  // Clear separate fields so / syntax takes full priority
+  const yrFrom = $('yr-from');
+  const yrTo   = $('yr-to');
+  const auth   = $('auth-input');
+  if (yrFrom) yrFrom.value = '';
+  if (yrTo)   yrTo.value   = '';
+  if (auth)   auth.value   = '';
   searchKeywords();
 }
 
