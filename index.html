@@ -869,21 +869,50 @@ embed.pdfframe { flex: 1; border: none; width: 100%; min-height: 300px; }
   <div class="rb">
     <div class="rtr">
       <div class="rt" id="rpt">Search Results</div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <div class="fb">
-          <div class="fbtn active" onclick="filterR('all',this)">All</div>
-          <div class="fbtn" onclick="filterR('oa',this)">Open Access</div>
-          <div class="fbtn" onclick="filterR('paid',this)">Paywalled</div>
+          <div class="fbtn active" data-filter="all"
+            onclick="filterR('all',this)">All</div>
+          <div class="fbtn" data-filter="oa"
+            onclick="filterR('oa',this)">Open Access</div>
+          <div class="fbtn" data-filter="paid"
+            onclick="filterR('paid',this)">Paywalled</div>
         </div>
-        <select id="r-sort" class="nl-sort" onchange="sortResults(this.value)"
-          style="margin-left:8px">
+        <select id="r-sort" class="nl-sort" onchange="sortResults(this.value)">
           <option value="year-desc">Year ↓ Newest</option>
           <option value="year-asc">Year ↑ Oldest</option>
           <option value="title-asc">Title A → Z</option>
           <option value="title-desc">Title Z → A</option>
         </select>
-      </div>
-      <div id="alpha-bar" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
+        <select id="r-alpha" class="nl-sort" onchange="filterAlpha(this.value,null)">
+          <option value="">All A–Z</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+          <option value="D">D</option>
+          <option value="E">E</option>
+          <option value="F">F</option>
+          <option value="G">G</option>
+          <option value="H">H</option>
+          <option value="I">I</option>
+          <option value="J">J</option>
+          <option value="K">K</option>
+          <option value="L">L</option>
+          <option value="M">M</option>
+          <option value="N">N</option>
+          <option value="O">O</option>
+          <option value="P">P</option>
+          <option value="Q">Q</option>
+          <option value="R">R</option>
+          <option value="S">S</option>
+          <option value="T">T</option>
+          <option value="U">U</option>
+          <option value="V">V</option>
+          <option value="W">W</option>
+          <option value="X">X</option>
+          <option value="Y">Y</option>
+          <option value="Z">Z</option>
+        </select>
       </div>
     </div>
     <div id="rl"></div>
@@ -1693,7 +1722,8 @@ function renderResults(q, res, page, total) {
   rAlpha = '';
   const rs = $('r-sort');
   if (rs) rs.value = 'year-desc';
-  buildAlphaBar();
+  const ra = $('r-alpha');
+  if (ra) ra.value = '';
   renderCards(res);
 
   // Pagination bar
@@ -1759,9 +1789,8 @@ function sortResults(val) {
 
 function filterAlpha(letter, el) {
   rAlpha = letter;
-  document.querySelectorAll('#alpha-bar .fbtn')
-    .forEach(b => b.classList.remove('active'));
-  if (el) el.classList.add('active');
+  const ra = $('r-alpha');
+  if (ra) ra.value = letter;
   applyResultFilters();
 }
 
@@ -1792,19 +1821,7 @@ function applyResultFilters() {
     + list.filter(r=>r.free).length + ' free';
 }
 
-function buildAlphaBar() {
-  const bar = $('alpha-bar');
-  if (!bar) return;
-  bar.innerHTML = '<div class="fbtn active" onclick="filterAlpha(\'\',this)" style="font-size:11px;padding:3px 8px">All</div>';
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(l => {
-    const d = document.createElement('div');
-    d.className = 'fbtn';
-    d.textContent = l;
-    d.style.cssText = 'font-size:11px;padding:3px 8px;min-width:28px;text-align:center';
-    d.onclick = () => filterAlpha(l, d);
-    bar.appendChild(d);
-  });
-}
+
 function filterList(type, filter) {
   document.querySelectorAll(`#rps-${type} .nl-ftab`).forEach(b => {
     b.classList.toggle('active', b.dataset.filter === filter);
