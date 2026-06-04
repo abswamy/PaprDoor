@@ -2270,7 +2270,9 @@ function renderPDF(p) {
           if (!doc || doc.title === '' || doc.body?.innerHTML?.trim() === '') {
             showFallback();
           }
-        } catch(e) {}
+        } catch(e) {
+          showFallback();
+        }
       }, 800);
       iframe.onerror = () => { clearTimeout(blockTimer); showFallback(); };
       iframe.onload = function() {
