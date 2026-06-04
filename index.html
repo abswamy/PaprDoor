@@ -1207,7 +1207,10 @@ function getBestPdfUrl(unpaywallData) {
 function isTrulyFree(uwData, oaUrl) {
   if (uwData && uwData.is_oa) {
     const pdf = getBestPdfUrl(uwData);
-    if (pdf) return { free: true, pdf: pdf };
+    const url = pdf || uwData.best_oa_location?.url ||
+                uwData.best_oa_location?.url_for_landing_page || null;
+    if (url) return { free: true, pdf: url };
+    return { free: true, pdf: null };
   }
   if (oaUrl && (
     oaUrl.endsWith('.pdf') ||
@@ -1216,7 +1219,16 @@ function isTrulyFree(uwData, oaUrl) {
     oaUrl.includes('biorxiv.org') ||
     oaUrl.includes('medrxiv.org') ||
     oaUrl.includes('zenodo.org') ||
-    oaUrl.includes('ncbi.nlm.nih.gov/pmc')
+    oaUrl.includes('ncbi.nlm.nih.gov/pmc') ||
+    oaUrl.includes('cell.com') ||
+    oaUrl.includes('frontiersin.org') ||
+    oaUrl.includes('plos.org') ||
+    oaUrl.includes('mdpi.com') ||
+    oaUrl.includes('nature.com') ||
+    oaUrl.includes('springer.com') ||
+    oaUrl.includes('wiley.com') ||
+    oaUrl.includes('tandfonline.com') ||
+    oaUrl.includes('sciencedirect.com')
   )) return { free: true, pdf: oaUrl };
   return { free: false, pdf: null };
 }
