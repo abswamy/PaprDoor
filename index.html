@@ -1173,90 +1173,100 @@ async function fetchDOI(doi) {
     .replace('http://doi.org/', '');
 
   try {
-    // Fire all sources in parallel — SS refs call also fetches paper metadata fields
-    const [crRes, oaRes, refRawRes, citRawRes, ocRes, uwRes, epmcRes] = await Promise.allSettled([
-      fetch(`https://api.crossref.org/works/${cleanDoi}`, {
+    // Phase 1: Always fire these 4 in parallel
+    const [crRes, uwRes, refRawRes, citRawRes] = await Promise.allSettled([
+      fetch('https://api.crossref.org/works/' + cleanDoi, {
         headers: { 'User-Agent': 'PaprDoor/1.0 (paprdoor.org; mailto:hello@paprdoor.org)' }
       }),
-      fetch(`https://api.openalex.org/works/doi:${cleanDoi}`),
-      fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${cleanDoi}?fields=title,authors,year,journal,externalIds,references.title,references.authors,references.year,references.externalIds,references.openAccessPdf,references.journal`),
-      fetch(`https://api.semanticscholar.org/graph/v1/paper/DOI:${cleanDoi}?fields=citations.title,citations.authors,citations.year,citations.externalIds,citations.openAccessPdf,citations.journal`),
-      fetch(`https://opencitations.net/index/api/v2/citations/${encodeURIComponent(cleanDoi)}`),
-      fetch(`https://api.unpaywall.org/v2/${cleanDoi}?email=hello@paprdoor.org`),
-      fetchEuropePMC(cleanDoi)
+      fetch('https://api.unpaywall.org/v2/' + cleanDoi + '?email=hello@paprdoor.org'),
+      fetch('https://api.semanticscholar.org/graph/v1/paper/DOI:' + cleanDoi + '?fields=title,authors,year,journal,externalIds,references.title,references.authors,references.year,references.externalIds,references.openAccessPdf,references.journal'),
+      fetch('https://api.semanticscholar.org/graph/v1/paper/DOI:' + cleanDoi + '?fields=citations.title,citations.authors,citations.year,citations.externalIds,citations.openAccessPdf,citations.journal')
     ]);
 
-    // ── Core metadata: CrossRef > OpenAlex > Semantic Scholar > EuropePMC ──
+    // ── Core metadata: CrossRef first ──
     let title, authors, journal, year, abstract, authorName, orcid, affil, metaDoi;
-    let crM = null, oaData = null, ssData = null;
+    let crM = null, ssData = null;
 
     if (crRes.status === 'fulfilled' && crRes.value.ok) {
       const crData = await crRes.value.json();
       crM        = crData.message;
       title      = crM.title?.[0];
-      authors    = (crM.author || []).map(a => `${a.given || ''} ${a.family || ''}`).join(', ');
-      journal    = crM['container-title']?.[0] || 'Unknown Journal';
+      authors    = (crM.author || []).map(a => (a.given||'') + ' ' + (a.family||'')).join(', ');
+      journal    = crM['container-title']?.[0] || '';
       year       = crM.published?.['date-parts']?.[0]?.[0];
-      abstract   = crM.abstract ? crM.abstract.replace(/<[^>]*>/g, '').replace(/^Abstract/i, '').trim() : null;
-      authorName = `${crM.author?.[0]?.given || ''} ${crM.author?.[0]?.family || ''}`.trim();
+      abstract   = crM.abstract ? crM.abstract.replace(/<[^>]*>/g,'').replace(/^Abstract/i,'').trim() : null;
+      authorName = ((crM.author?.[0]?.given||'') + ' ' + (crM.author?.[0]?.family||'')).trim();
       orcid      = crM.author?.[0]?.ORCID || null;
       affil      = crM.author?.[0]?.affiliation?.[0]?.name || '';
       metaDoi    = crM.DOI;
     }
 
-    if (oaRes.status === 'fulfilled' && oaRes.value.ok) {
-      oaData = await oaRes.value.json();
-      if (!title) {
-        title      = oaData.title;
-        authors    = (oaData.authorships || []).map(a => a.author?.display_name || '').filter(Boolean).join(', ');
-        journal    = oaData.primary_location?.source?.display_name || 'Unknown Journal';
-        year       = oaData.publication_year;
-        abstract   = oaData.abstract_inverted_index ? reconstructAbstract(oaData.abstract_inverted_index) : null;
-        authorName = oaData.authorships?.[0]?.author?.display_name || '';
-        affil      = oaData.authorships?.[0]?.institutions?.[0]?.display_name || '';
-        metaDoi    = (oaData.doi || '').replace('https://doi.org/', '') || cleanDoi;
-      }
-    }
-
-    // SS refs response includes paper metadata — read once for both metadata fallback and refs list
+    // SS metadata — read refs response once for both metadata fallback and refs list
     if (refRawRes.status === 'fulfilled' && refRawRes.value.ok) {
       ssData = await refRawRes.value.json();
       if (!title && ssData.title) {
         title      = ssData.title;
         authors    = (ssData.authors || []).map(a => a.name).join(', ');
-        journal    = ssData.journal?.name || 'Unknown Journal';
+        journal    = ssData.journal?.name || '';
         year       = ssData.year;
         authorName = ssData.authors?.[0]?.name || '';
         metaDoi    = ssData.externalIds?.DOI || cleanDoi;
       }
     }
 
-    if (!title && epmcRes.status === 'fulfilled') {
-      const ep = epmcRes.value;
-      title      = ep.title;
-      authors    = ep.authors;
-      journal    = ep.journal;
-      year       = ep.year;
-      abstract   = ep.abstract || null;
-      authorName = (ep.authors || '').split(',')[0].trim();
-      metaDoi    = ep.doi || cleanDoi;
+    // Phase 2: OpenAlex ONLY if still missing title or abstract
+    let oaData = null;
+    if (!title || !abstract) {
+      try {
+        const oaRes = await fetch('https://api.openalex.org/works/doi:' + cleanDoi);
+        if (oaRes.ok) {
+          oaData = await oaRes.json();
+          if (!title) {
+            title      = oaData.title;
+            authors    = (oaData.authorships||[]).map(a=>a.author?.display_name||'').filter(Boolean).join(', ');
+            journal    = oaData.primary_location?.source?.display_name || '';
+            year       = oaData.publication_year;
+            authorName = oaData.authorships?.[0]?.author?.display_name || '';
+            affil      = oaData.authorships?.[0]?.institutions?.[0]?.display_name || '';
+            metaDoi    = (oaData.doi||'').replace('https://doi.org/','') || cleanDoi;
+          }
+          if (!abstract && oaData.abstract_inverted_index) {
+            abstract = reconstructAbstract(oaData.abstract_inverted_index);
+          }
+        }
+      } catch(e) {}
+    }
+
+    // EuropePMC ONLY if still no title
+    let epmcData = null;
+    if (!title) {
+      try {
+        epmcData = await fetchEuropePMC(cleanDoi);
+        title      = epmcData.title;
+        authors    = epmcData.authors;
+        journal    = epmcData.journal;
+        year       = epmcData.year;
+        abstract   = epmcData.abstract || null;
+        authorName = (epmcData.authors||'').split(',')[0].trim();
+        metaDoi    = epmcData.doi || cleanDoi;
+      } catch(e) {}
     }
 
     if (!title) throw new Error('NOT_FOUND');
 
-    // ── OA status: isTrulyFree check ──
+    // ── OA status: Unpaywall is the authority ──
     let uwDataParsed = null;
     if (uwRes.status === 'fulfilled' && uwRes.value.ok) {
       uwDataParsed = await uwRes.value.json();
     }
-    const openalexOaUrl = oaData?.open_access?.oa_url || null;
-    const oaCheck = isTrulyFree(uwDataParsed, openalexOaUrl);
+    const oaCheck = isTrulyFree(uwDataParsed, null);
     let isOA = oaCheck.free;
     let oaUrl = oaCheck.pdf;
 
-    if (!isOA && epmcRes.status === 'fulfilled' && epmcRes.value.oa) {
+    // EuropePMC fallback for OA
+    if (!isOA && epmcData?.oa) {
       isOA  = true;
-      oaUrl = oaUrl || epmcRes.value.pdf;
+      oaUrl = oaUrl || epmcData.pdf;
     }
 
     // ── References & citations ──
@@ -1862,13 +1872,17 @@ function renderList(type, items, filter, sort) {
   container.innerHTML = html;
 
 
-  // Background OA verification — check ALL DOIs, wait 3.5s for checkOtherSources
+  // ── Background Task A: Unpaywall verify all refs with DOIs (500ms delay) ──
+  // ── Background Task B: OpenAlex batch title search for no-DOI refs ──
+  // Both fire in parallel after page renders
+
   setTimeout(() => {
-    const allWithDoi = (type === 'refs' ? (cp.refs||[]) : (cp.cites||[]))
-      .filter(r => r.doi && !getCached(r.doi));
-    if (!allWithDoi.length) return;
-    let anyChanged = false;
-    const checks = allWithDoi.slice(0, 50).map((item, idx) =>
+    const allItems = type === 'refs' ? (cp.refs||[]) : (cp.cites||[]);
+
+    // Task A: Unpaywall verify all DOI refs not yet cached
+    const allWithDoi = allItems.filter(r => r.doi && !getCached(r.doi));
+    let uwChanged = false;
+    const uwChecks = allWithDoi.slice(0, 50).map((item, idx) =>
       new Promise(resolve => setTimeout(async () => {
         if (uwCallsToday >= 80000) return resolve();
         uwCallsToday++;
@@ -1879,26 +1893,79 @@ function renderList(type, items, filter, sort) {
           const free = !!(data.is_oa && pdf);
           oaCache.set(item.doi, { free, pdf: pdf||null, timestamp: Date.now(), ttl: free?43200000:86400000 });
           if (free !== item.free || (pdf && !item.pdf)) {
-            item.free = free; if (pdf) item.pdf = pdf; if (free) item.source = 'Unpaywall'; anyChanged = true;
+            item.free = free;
+            if (pdf) item.pdf = pdf;
+            if (free) item.source = 'Unpaywall';
+            uwChanged = true;
           }
         } catch(e) {}
         resolve();
       }, idx * 250))
     );
-    Promise.allSettled(checks).then(() => {
-      if (!anyChanged) return;
-      const items = type==='refs' ? (cp.refs||[]) : (cp.cites||[]);
-      const freeCount = items.filter(p=>p.free&&p.pdf).length;
-      const paidCount = items.filter(p=>!(p.free&&p.pdf)&&p.doi).length;
 
-      // Update tab buttons with counts
+    // Task B: OpenAlex batch title search for no-DOI refs (single call)
+    const noDOIitems = allItems.filter(r =>
+      !r.doi && r.title && r.title.length > 15
+      && !r.title.startsWith('http')
+      && !r.title.match(/^\w[\w.,]+\s+\w[\w.,]+\.?\s*\d{4}/)
+    ).slice(0, 10);
+
+    const oaEnrich = (async () => {
+      if (!noDOIitems.length) return false;
+      let enrichChanged = false;
+      try {
+        // Build filter with title search for each no-DOI ref — one batch call
+        const titleFilter = noDOIitems
+          .map(r => 'title.search:' + encodeURIComponent('"' + r.title.substring(0,60).replace(/"/g,'') + '"'))
+          .join('|');
+        const res = await fetch(
+          'https://api.openalex.org/works?filter=' + titleFilter +
+          '&select=doi,title,open_access,best_oa_location&per_page=10&mailto=hello@paprdoor.org'
+        );
+        if (!res.ok) return false;
+        const data = await res.json();
+        (data.results || []).forEach(work => {
+          if (!work.doi) return;
+          const workDoi = work.doi.replace('https://doi.org/','');
+          const workTitle = (work.title||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+          // Match to a noDOI item by title similarity (first 15 chars)
+          const match = noDOIitems.find(r => {
+            const refTitle = r.title.toLowerCase().replace(/[^a-z0-9]/g,'');
+            return refTitle.length > 15 && workTitle.includes(refTitle.substring(0,15));
+          });
+          if (!match) return;
+          match.doi = workDoi;
+          match.source = 'OpenAlex';
+          const pdf = work.best_oa_location?.url_for_pdf ||
+            (work.open_access?.is_oa ? work.open_access.oa_url : null) || null;
+          if (work.open_access?.is_oa && pdf) {
+            match.free = true;
+            match.pdf = pdf;
+          }
+          enrichChanged = true;
+        });
+      } catch(e) {}
+      return enrichChanged;
+    })();
+
+    // Wait for both tasks then re-render once
+    Promise.allSettled([Promise.allSettled(uwChecks), oaEnrich]).then(results => {
+      const enrichChanged = results[1].status === 'fulfilled' && results[1].value === true;
+      const anyChanged = uwChanged || enrichChanged;
+      if (!anyChanged) return;
+
+      const items = type === 'refs' ? (cp.refs||[]) : (cp.cites||[]);
+      const freeCount = items.filter(p => p.free && p.pdf).length;
+      const paidCount = items.filter(p => !(p.free && p.pdf) && p.doi).length;
+
+      // Update Free Access tab label with count
       const freeBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="free"]');
       if (freeBtn && freeCount > 0) {
-        freeBtn.textContent = '● Free Access ('+freeCount+')';
+        freeBtn.innerHTML = '<span class="nl-ftab-dot"></span>Free Access ('+freeCount+')';
       }
 
-      // Update network badges
-      const nb = document.getElementById(type==='refs'?'nb-refs':'nb-cites');
+      // Update network count badges
+      const nb = document.getElementById(type==='refs' ? 'nb-refs' : 'nb-cites');
       if (nb) {
         const fc = nb.querySelector('.nbc.free');
         const pc = nb.querySelector('.nbc.paid');
@@ -1906,17 +1973,14 @@ function renderList(type, items, filter, sort) {
         if (pc) pc.textContent = '⊘ '+paidCount+' paid';
       }
 
-      // Re-render current active tab
+      // Re-render current active tab only
       const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
       const curFilter = activeBtn ? activeBtn.dataset.filter : 'all';
       renderList(type, items, curFilter, sort);
 
-      // Show toast if free papers found
-      if (freeCount > 0) {
-        toast('✓ '+freeCount+' free papers found in references');
-      }
+      if (freeCount > 0) toast('✓ '+freeCount+' free papers found');
     });
-  }, 3500);
+  }, 500);
 }
 
 function openPreviewPane(pdfUrl, title, item) {
