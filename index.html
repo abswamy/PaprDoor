@@ -1325,10 +1325,7 @@ async function fetchDOI(doi) {
       const citesData = await citRawRes.value.json();
       cites = mapSS(citesData.citations || []);
     }
-    if (ocRes.status === 'fulfilled' && ocRes.value.ok) {
-      const ocData = await ocRes.value.json();
-      cites = mergeByDoi(cites, mapOC(Array.isArray(ocData) ? ocData : []));
-    }
+
 
     // Enrich OC-only citation stubs (DOI only, no title) with CrossRef metadata
     const noMetadata = cites.filter(c => (!c.title || c.title === c.doi || c.title === 'Citing paper') && c.doi);
