@@ -1046,6 +1046,7 @@ const _checkedTitles = new Set();
 const _verifiedDois = new Set();
 let rSort = 'year-desc';
 let rAlpha = '';
+let _toastShown = false;
 let uwCallsToday = 0;
 let uwCallDate = new Date().toDateString();
 const $=id=>document.getElementById(id);
@@ -2249,7 +2250,9 @@ function renderList(type, items, filter, sort) {
 
       const activeBtn = document.querySelector('#rps-'+type+' .nl-ftab.active');
       const curFilter = activeBtn ? activeBtn.dataset.filter : 'all';
-      renderList(type, items, curFilter, sort);
+      if (uwChanged) {
+        renderList(type, items, curFilter, sort);
+      }
 
       const allItems2 = type==='refs'?(cp.refs||[]):(cp.cites||[]);
       const freeCount2 = allItems2.filter(p => p.free && p.pdf).length;
@@ -2262,7 +2265,10 @@ function renderList(type, items, filter, sort) {
         if (pc2) pc2.textContent = '\u2298 ' + paidCount2 + ' paid';
       }
 
-      if (freeCount > 0) toast('\u2713 '+freeCount+' free papers found');
+      if (freeCount > 0 && !_toastShown) {
+        _toastShown = true;
+        toast('\u2713 '+freeCount+' free papers found');
+      }
     });
   }, 500);
 }
@@ -2362,6 +2368,7 @@ function loadPaper(paper, skipHistory) {
   cp = paper;
   _checkedTitles.clear();
   _verifiedDois.clear();
+  _toastShown = false;
   // Update Other Doors links with paper title
   const _title = encodeURIComponent((paper.title||'').substring(0,80));
   const _gs = $('od-gs');
