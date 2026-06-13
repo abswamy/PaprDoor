@@ -2553,6 +2553,7 @@ function renderPDF(p) {
   if (p && p.oa && p.pdf) {
     const url = p.pdf;
     const safeUrl = url && url.startsWith('http') ? url : null;
+    console.log('PDF URL:', url);
     if (!safeUrl) { showPdfFallback(); return; }
     // Detect landing pages — show fallback immediately
     // Only attempt iframe for URLs that are likely direct PDFs
