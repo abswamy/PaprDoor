@@ -2527,11 +2527,28 @@ function checkGoogleViewer(iframe) {
   try {
     const doc = iframe.contentDocument ||
                 iframe.contentWindow?.document;
-    if (doc && doc.body?.innerHTML?.includes('Unable to generate')) {
+    if (!doc) return;
+    const body = doc.body?.innerHTML || '';
+    // Google Docs Viewer failed to render
+    if (body.includes('Unable to generate')) {
       showPdfFallback();
+      return;
+    }
+    // Viewer loaded HTML source instead of PDF
+    if (body.includes('&lt;!DOCTYPE') ||
+        body.includes('&lt;html') ||
+        doc.title?.includes('DOCTYPE') ||
+        doc.contentType === 'text/html' &&
+        body.includes('&lt;meta')) {
+      const src = iframe.src || '';
+      const urlMatch = src.match(/viewer\?url=([^&]+)/);
+      if (urlMatch) {
+        openUrl(decodeURIComponent(urlMatch[1]));
+      }
+      iframe.style.display = 'none';
     }
   } catch(e) {
-    // Cross-origin from Google — viewer is loading fine
+    // Cross-origin — viewer is loading real content
   }
 }
 
@@ -2578,33 +2595,6 @@ function renderPDF(p) {
       safeUrl.includes('frontiersin.org') ||
       safeUrl.includes('mdpi.com') ||
       safeUrl.includes('ncbi.nlm.nih.gov/pmc/articles');
-
-    // Always block known publisher landing pages regardless of looksLikePdf
-    const isPublisherLanding =
-      safeUrl.includes('nature.com') ||
-      safeUrl.includes('springer.com') ||
-      safeUrl.includes('wiley.com') ||
-      safeUrl.includes('sciencedirect.com') ||
-      safeUrl.includes('tandfonline.com') ||
-      safeUrl.includes('cell.com') ||
-      safeUrl.includes('science.org') ||
-      safeUrl.includes('pnas.org') ||
-      safeUrl.includes('bmj.com') ||
-      safeUrl.includes('thelancet.com') ||
-      safeUrl.includes('cambridge.org') ||
-      safeUrl.includes('oup.com') ||
-      safeUrl.includes('jstor.org') ||
-      safeUrl.includes('asm.org') ||
-      safeUrl.includes('karger.com') ||
-      safeUrl.includes('liebertpub.com') ||
-      safeUrl.includes('sagepub.com') ||
-      safeUrl.includes('journals.lww.com') ||
-      safeUrl.includes('elsevier.com');
-
-    if (isPublisherLanding) {
-      showPdfFallback();
-      return;
-    }
 
     if (!looksLikePdf) {
       // Not a direct PDF — show fallback with open button
@@ -2662,15 +2652,21 @@ function renderPDF(p) {
       try {
         const doc = iframe.contentDocument ||
                     iframe.contentWindow?.document;
-        if (doc?.body?.innerHTML?.includes('Unable to generate') ||
-            doc?.body?.innerHTML?.trim() === '') {
+        if (!doc) return;
+        const body = doc.body?.innerHTML || '';
+        if (body.includes('Unable to generate') ||
+            body.trim() === '') {
           showPdfFallback();
+          return;
         }
-      } catch(e) {
-        // Cross-origin means Google Docs Viewer loaded something — check height
-        const rect = iframe.getBoundingClientRect();
-        if (rect.height < 100) showPdfFallback();
-      }
+        if (body.includes('&lt;!DOCTYPE') ||
+            body.includes('&lt;html')) {
+          const src = iframe.src || '';
+          const urlMatch = src.match(/viewer\?url=([^&]+)/);
+          if (urlMatch) openUrl(decodeURIComponent(urlMatch[1]));
+          iframe.style.display = 'none';
+        }
+      } catch(e) {}
     }, 2500);
   } else {
     w.innerHTML = `<div class="pdf-fb">
