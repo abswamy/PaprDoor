@@ -2038,6 +2038,22 @@ function renderList(type, items, filter, sort) {
   const paid  = sorted.filter(p => !(p.free && p.pdf) && p.doi);
   const other = sorted.filter(p => !p.doi);
 
+  if (sorted.length === 0) {
+    container.innerHTML = `
+      <div style="padding:40px 24px;text-align:center">
+        <div style="font-size:32px;margin-bottom:16px;opacity:.3">📄</div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">
+          No ${type === 'refs' ? 'reference' : 'citation'} data available
+        </div>
+        <div style="font-size:12px;color:var(--ink-faint);line-height:1.7;max-width:280px;margin:0 auto">
+          This paper's ${type === 'refs' ? 'references are' : 'citations are'} not indexed by our sources.
+          This is common for papers published before 2000 or from journals not covered by
+          Semantic Scholar or CrossRef.
+        </div>
+      </div>`;
+    return;
+  }
+
   const freeTabBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="free"]');
   const paidTabBtn = document.querySelector('#rps-'+type+' .nl-ftab[data-filter="paid"]');
   if (freeTabBtn) freeTabBtn.textContent = 'Free Access' + (free.length > 0 ? ' ('+free.length+')' : '');
@@ -2436,15 +2452,19 @@ function renderLeft(p) {
       </a>
     </div>`;
 
+  const hasRefs  = p.refs  && p.refs.length  > 0;
+  const hasCites = p.cites && p.cites.length > 0;
+  const netbar = document.querySelector('.lp-netbar');
+  if (netbar) netbar.style.display = (hasRefs || hasCites) ? '' : 'none';
   $("nbtns").innerHTML =
-    `<div class="nbtn" id="nb-refs" onclick="openRP('refs')">
+    (hasRefs ? `<div class="nbtn" id="nb-refs" onclick="openRP('refs')">
       <div class="nbt">Reference Network</div>
       <div class="nbc2"><span class="nbc free">✓ ${rf} free</span><span class="nbc paid">⊘ ${p.refs.length - rf} paid</span></div>
-    </div>
-    <div class="nbtn" id="nb-cites" onclick="openRP('cites')">
+    </div>` : '')
+    + (hasCites ? `<div class="nbtn" id="nb-cites" onclick="openRP('cites')">
       <div class="nbt">Citation Network</div>
       <div class="nbc2"><span class="nbc free">✓ ${cf} free</span><span class="nbc paid">⊘ ${p.cites.length - cf} paid</span></div>
-    </div>`;
+    </div>` : '');
 }
 function openRP(state){$('lpane').classList.add('rp-open');$('rpane').classList.add('open');const sub=$('ab-subtitle');if(sub)sub.style.display='none';switchRP(state)}
 function closeRP(){currentRP='';$('lpane').classList.remove('rp-open');$('lpane').classList.remove('resized');$('lpane').style.width='';$('rpane').classList.remove('open');const pt=$('pt-btn');if(pt)pt.classList.remove('active');['nb-refs','nb-cites'].forEach(id=>{const e=$(id);if(e)e.classList.remove('active')});const sub=$('ab-subtitle');if(sub)sub.style.display='';}
