@@ -2216,11 +2216,35 @@ function renderList(type, items, filter, sort) {
           const data = await res.json();
           const pdf = getBestPdfUrl(data);
           const free = !!(data.is_oa && pdf);
-          oaCache.set(item.doi, { free, pdf: pdf||null, timestamp: Date.now(), ttl: free?43200000:86400000 });
-          if (free !== item.free || (pdf && !item.pdf)) {
-            item.free = free;
-            if (pdf) item.pdf = pdf;
-            if (free) item.source = 'Unpaywall';
+          let finalFree = free;
+          let finalPdf  = pdf;
+
+          if (!free) {
+            try {
+              const oaRes = await fetch(
+                'https://api.openalex.org/works/doi:'
+                + encodeURIComponent(item.doi)
+                + '?select=open_access,best_oa_location'
+                + '&mailto=hello@paprdoor.org'
+              );
+              if (oaRes.ok) {
+                const oaData = await oaRes.json();
+                const oaPdf = oaData.best_oa_location?.url_for_pdf
+                  || (oaData.open_access?.is_oa
+                      ? oaData.open_access?.oa_url : null);
+                if (oaData.open_access?.is_oa && oaPdf) {
+                  finalFree = true;
+                  finalPdf  = oaPdf;
+                }
+              }
+            } catch(e) {}
+          }
+
+          oaCache.set(item.doi, { free: finalFree, pdf: finalPdf||null, timestamp: Date.now(), ttl: finalFree?43200000:86400000 });
+          if (finalFree !== item.free || (finalPdf && !item.pdf)) {
+            item.free = finalFree;
+            if (finalPdf) item.pdf = finalPdf;
+            if (finalFree) item.source = finalFree !== free ? 'OpenAlex' : 'Unpaywall';
             uwChanged = true;
           }
         } catch(e) {}
