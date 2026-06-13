@@ -2094,6 +2094,8 @@ function renderList(type, items, filter, sort) {
     const pdfBtn = '';
     const viewBtn = activeDoi
       ? '<button class="nl-view-btn" onclick="loadFromList(\''+activeDoi.replace(/'/g,'&#39;')+'\',\''+activePdf.replace(/'/g,'&#39;')+'\',\''+type+'\')">View Paper \u2192</button>'
+      : activePdf
+      ? '<button class="nl-view-btn" onclick="openUrl(\''+activePdf.replace(/'/g,'&#39;')+'\')">Open PDF \u2192</button>'
       : '';
     const searchWrap = (section === 'other' && !otherFree)
       ? `<div class="nl-search-wrap" style="position:relative;margin-top:8px"><button class="nl-search-btn" onclick="toggleSearchDrop(this)" data-title="${encodeURIComponent(p.title||'')}" data-authors="${encodeURIComponent(p.authors||'')}" data-year="${p.year||''}">\uD83D\uDD0D Search \u25BE</button><div class="nl-search-drop" style="display:none"><a class="nl-search-opt" onclick="openSearch('scholar',this)">Google Scholar</a><a class="nl-search-opt" onclick="openSearch('semantic',this)">Semantic Scholar</a><a class="nl-search-opt" onclick="openSearch('researchgate',this)">ResearchGate</a><a class="nl-search-opt" onclick="openSearch('pubmed',this)">PubMed</a><a class="nl-search-opt" onclick="openSearch('core',this)">CORE</a><a class="nl-search-opt" onclick="openSearch('base',this)">BASE</a><a class="nl-search-opt" onclick="openSearch('shodhganga',this)">\uD83C\uDDEE\uD83C\uDDF3 Shodhganga</a></div></div>`
@@ -2227,8 +2229,6 @@ function renderList(type, items, filter, sort) {
 
     // ── Wait for Task A, re-render once ──
     Promise.allSettled(uwChecks).then(() => {
-      if (!uwChanged) return;
-
       const items = type === 'refs' ? (cp.refs||[]) : (cp.cites||[]);
       const freeCount = items.filter(p => p.free && p.pdf).length;
       const paidCount = items.filter(p => !(p.free && p.pdf) && p.doi).length;
