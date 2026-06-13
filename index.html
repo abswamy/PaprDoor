@@ -2576,7 +2576,35 @@ function renderPDF(p) {
       safeUrl.includes('repository.') ||
       safeUrl.includes('plos.org') ||
       safeUrl.includes('frontiersin.org') ||
-      safeUrl.includes('mdpi.com');
+      safeUrl.includes('mdpi.com') ||
+      safeUrl.includes('ncbi.nlm.nih.gov/pmc/articles');
+
+    // Always block known publisher landing pages regardless of looksLikePdf
+    const isPublisherLanding =
+      safeUrl.includes('nature.com') ||
+      safeUrl.includes('springer.com') ||
+      safeUrl.includes('wiley.com') ||
+      safeUrl.includes('sciencedirect.com') ||
+      safeUrl.includes('tandfonline.com') ||
+      safeUrl.includes('cell.com') ||
+      safeUrl.includes('science.org') ||
+      safeUrl.includes('pnas.org') ||
+      safeUrl.includes('bmj.com') ||
+      safeUrl.includes('thelancet.com') ||
+      safeUrl.includes('cambridge.org') ||
+      safeUrl.includes('oup.com') ||
+      safeUrl.includes('jstor.org') ||
+      safeUrl.includes('asm.org') ||
+      safeUrl.includes('karger.com') ||
+      safeUrl.includes('liebertpub.com') ||
+      safeUrl.includes('sagepub.com') ||
+      safeUrl.includes('journals.lww.com') ||
+      safeUrl.includes('elsevier.com');
+
+    if (isPublisherLanding) {
+      showPdfFallback();
+      return;
+    }
 
     if (!looksLikePdf) {
       // Not a direct PDF — show fallback with open button
